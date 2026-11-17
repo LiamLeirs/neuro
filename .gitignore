@@ -1,0 +1,8 @@
+
+/build/
+/.vscode/
+*.o
+*.so
+*.a
+/data/
+/checkpoints/
