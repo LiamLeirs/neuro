@@ -2,6 +2,7 @@
 
 #include <af/array.h>
 #include <af/dim4.hpp>
+#include <initializer_list>
 #include <ostream>
 
 namespace neuro {
@@ -9,6 +10,8 @@ namespace neuro {
 class Tensor {
 public:
     explicit Tensor(const af::array& data);
+    Tensor(std::initializer_list<float> value);
+    Tensor(std::initializer_list<std::initializer_list<float>> value);
     const af::array& data() const;
     af::dim4 shape() const;
     Tensor operator+(const Tensor& other) const;
