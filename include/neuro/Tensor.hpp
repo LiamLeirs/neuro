@@ -8,7 +8,6 @@
 #include <initializer_list>
 #include <memory>
 #include <ostream>
-#include <stack>
 
 namespace neuro {
 
@@ -33,6 +32,7 @@ public:
     Tensor sum() const;
     Tensor transpose() const;
     bool requires_grad() const;
+    void backward();
 
 private:
     std::shared_ptr<TensorImpl> impl_;

@@ -12,7 +12,6 @@
 #include <cstddef>
 #include <initializer_list>
 #include <memory>
-#include <stack>
 #include <stdexcept>
 #include <vector>
 
@@ -319,6 +318,21 @@ void Tensor::findTopoSort(const std::shared_ptr<TensorImpl>& node,
         }
     }
     topo.push_back(node);
+}
+
+void Tensor::backward() {
+    if (!impl_->requires_grad_)
+        return;
+    if (impl_->data_.elements() != 1) {
+        throw std::invalid_argument("backward() requires a scalar output");
+    }
+    impl_->grad_ = af::constant(1.0, impl_->data_.dims(), impl_->data_.type());
+    std::vector<std::shared_ptr<TensorImpl>> nodes = topologicalSort();
+    for (auto it = nodes.rbegin(); it != nodes.rend(); ++it) {
+        if ((*it)->backward_fn) {
+            (*it)->backward_fn();
+        }
+    }
 }
 
 } // namespace neuro
