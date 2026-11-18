@@ -1,12 +1,14 @@
 #pragma once
 
 #include "neuro/TensorImpl.hpp"
+#include "unordered_set"
 
 #include <af/array.h>
 #include <af/dim4.hpp>
 #include <initializer_list>
 #include <memory>
 #include <ostream>
+#include <stack>
 
 namespace neuro {
 
@@ -34,6 +36,10 @@ public:
 
 private:
     std::shared_ptr<TensorImpl> impl_;
+    std::vector<std::shared_ptr<TensorImpl>> topologicalSort() const;
+    void findTopoSort(const std::shared_ptr<TensorImpl>& node,
+                      std::unordered_set<TensorImpl*>& visited,
+                      std::vector<std::shared_ptr<TensorImpl>>& topo) const;
 };
 
 std::ostream& operator<<(std::ostream& out, const Tensor& t);

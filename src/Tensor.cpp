@@ -1,6 +1,7 @@
 #include "neuro/Tensor.hpp"
 
 #include "neuro/TensorImpl.hpp"
+#include "unordered_set"
 
 #include <af/algorithm.h>
 #include <af/array.h>
@@ -10,6 +11,8 @@
 #include <af/util.h>
 #include <cstddef>
 #include <initializer_list>
+#include <memory>
+#include <stack>
 #include <stdexcept>
 #include <vector>
 
@@ -295,6 +298,27 @@ Tensor Tensor::transpose() const {
         result.impl_->dependencies.push_back(impl_);
     }
     return result;
+}
+
+std::vector<std::shared_ptr<TensorImpl>> Tensor::topologicalSort() const {
+    std::unordered_set<TensorImpl*> visited;
+    std::vector<std::shared_ptr<TensorImpl>> topo;
+
+    findTopoSort(this->impl_, visited, topo);
+
+    return topo;
+};
+
+void Tensor::findTopoSort(const std::shared_ptr<TensorImpl>& node,
+                          std::unordered_set<TensorImpl*>& visited,
+                          std::vector<std::shared_ptr<TensorImpl>>& topo) const {
+    visited.insert(node.get());
+    for (const auto& impl : node->dependencies) {
+        if (!visited.contains(impl.get())) {
+            findTopoSort(impl, visited, topo);
+        }
+    }
+    topo.push_back(node);
 }
 
 } // namespace neuro
