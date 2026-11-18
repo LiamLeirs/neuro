@@ -13,13 +13,16 @@
 
 namespace neuro {
 
-Tensor::Tensor(const af::array& data)
-    : data_(data), grad_(af::constant(0, data.dims(), data_.type())) {}
+Tensor::Tensor(const af::array& data, bool requires_grad)
+    : data_(data), grad_(af::constant(0, data.dims(), data_.type())),
+      requires_grad_(requires_grad) {}
 
-Tensor::Tensor(std::initializer_list<float> value)
-    : data_(af::array(value)), grad_(af::constant(0, data_.dims())) {}
+Tensor::Tensor(std::initializer_list<float> value, bool requires_grad)
+    : data_(af::array(value)), grad_(af::constant(0, data_.dims())), requires_grad_(requires_grad) {
+}
 
-Tensor::Tensor(std::initializer_list<std::initializer_list<float>> value) {
+Tensor::Tensor(std::initializer_list<std::initializer_list<float>> value, bool requires_grad)
+    : requires_grad_(requires_grad) {
     if (value.size() == 0) {
         data_ = af::array();
         grad_ = af::array();
@@ -46,6 +49,10 @@ const af::array& Tensor::data() const {
 
 const af::array& Tensor::grad() const {
     return grad_;
+}
+
+bool Tensor::requires_grad() const {
+    return requires_grad_;
 }
 
 af::dim4 Tensor::shape() const {

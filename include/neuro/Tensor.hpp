@@ -9,9 +9,9 @@ namespace neuro {
 
 class Tensor {
 public:
-    explicit Tensor(const af::array& data);
-    Tensor(std::initializer_list<float> value);
-    Tensor(std::initializer_list<std::initializer_list<float>> value);
+    explicit Tensor(const af::array& data, bool requires_grad = false);
+    Tensor(std::initializer_list<float> value, bool requires_grad = false);
+    Tensor(std::initializer_list<std::initializer_list<float>> value, bool requires_grad = false);
     const af::array& data() const;
     const af::array& grad() const;
     af::dim4 shape() const;
@@ -21,10 +21,12 @@ public:
     Tensor sum(int dim) const;
     Tensor sum() const;
     Tensor transpose() const;
+    bool requires_grad() const;
 
 private:
     af::array data_;
     af::array grad_;
+    bool requires_grad_;
 };
 
 std::ostream& operator<<(std::ostream& out, const Tensor& t);
