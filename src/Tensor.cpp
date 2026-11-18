@@ -8,6 +8,7 @@
 #include <af/blas.h>
 #include <af/data.h>
 #include <af/defines.h>
+#include <af/dim4.hpp>
 #include <af/util.h>
 #include <cstddef>
 #include <initializer_list>
@@ -271,6 +272,20 @@ Tensor Tensor::matmul(const Tensor& other) const {
     if (result.requires_grad()) {
         result.impl_->dependencies.push_back(impl_);
         result.impl_->dependencies.push_back(other.impl_);
+        auto left = impl_;
+        auto right = other.impl_;
+        std::weak_ptr<TensorImpl> output = result.impl_;
+        result.impl_->backward_fn = [left, right, output]() {
+            auto out = output.lock();
+            if (!out)
+                return;
+
+            if (left->requires_grad_)
+                left->grad_ += af::matmul(out->grad_, af::transpose(right->data_));
+
+            if (right->requires_grad_)
+                right->grad_ += af::matmul(af::transpose(left->data_), out->grad_);
+        };
     }
     return result;
 }
@@ -279,6 +294,19 @@ Tensor Tensor::sum(int dim) const {
     Tensor result = Tensor(af::sum(impl_->data_, dim), impl_->requires_grad_);
     if (result.requires_grad()) {
         result.impl_->dependencies.push_back(impl_);
+        auto left = impl_;
+        std::weak_ptr<TensorImpl> output = result.impl_;
+        result.impl_->backward_fn = [left, dim, output]() {
+            auto out = output.lock();
+            if (!out)
+                return;
+
+            if (left->requires_grad_) {
+                af::dim4 dims = af::dim4(1, 1, 1, 1);
+                dims[dim] = left->data_.dims(dim);
+                left->grad_ += af::tile(out->grad_, dims);
+            }
+        };
     }
     return result;
 }
@@ -287,6 +315,18 @@ Tensor Tensor::sum() const {
     Tensor result = Tensor(af::sum(af::flat(impl_->data_)), impl_->requires_grad_);
     if (result.requires_grad()) {
         result.impl_->dependencies.push_back(impl_);
+        auto left = impl_;
+        std::weak_ptr<TensorImpl> output = result.impl_;
+        result.impl_->backward_fn = [left, output]() {
+            auto out = output.lock();
+            if (!out)
+                return;
+
+            if (left->requires_grad_) {
+                left->grad_ += af::constant(out->grad_.scalar<float>(), left->grad_.dims(),
+                                            left->grad_.type());
+            }
+        };
     }
     return result;
 }
@@ -295,6 +335,17 @@ Tensor Tensor::transpose() const {
     Tensor result = Tensor(impl_->data_.T(), impl_->requires_grad_);
     if (result.requires_grad()) {
         result.impl_->dependencies.push_back(impl_);
+        auto left = impl_;
+        std::weak_ptr<TensorImpl> output = result.impl_;
+        result.impl_->backward_fn = [left, output]() {
+            auto out = output.lock();
+            if (!out)
+                return;
+
+            if (left->requires_grad_) {
+                left->grad_ += out->grad_.T();
+            }
+        };
     }
     return result;
 }
