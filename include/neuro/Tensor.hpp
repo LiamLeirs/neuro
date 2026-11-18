@@ -19,7 +19,13 @@ public:
     const af::array& grad() const;
     af::dim4 shape() const;
     Tensor operator+(const Tensor& other) const;
+    Tensor operator+(double scalar) const;
+    Tensor operator-(const Tensor& other) const;
+    Tensor operator-(double scalar) const;
     Tensor operator*(const Tensor& other) const;
+    Tensor operator*(double scalar) const;
+    Tensor operator/(const Tensor& other) const;
+    Tensor operator/(double scalar) const;
     Tensor matmul(const Tensor& other) const;
     Tensor sum(int dim) const;
     Tensor sum() const;
@@ -31,7 +37,8 @@ private:
 };
 
 std::ostream& operator<<(std::ostream& out, const Tensor& t);
-Tensor operator*(const Tensor& t, double scalar);
 Tensor operator*(double scalar, const Tensor& t);
-
+Tensor operator+(double scalar, const Tensor& t);
+Tensor operator-(double scalar, const Tensor& t);
+Tensor operator/(double scalar, const Tensor& t);
 } // namespace neuro

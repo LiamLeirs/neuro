@@ -68,13 +68,67 @@ af::dim4 Tensor::shape() const {
 }
 
 Tensor Tensor::operator+(const Tensor& other) const {
-    return Tensor(impl_->data_ + other.impl_->data_,
-                  other.impl_->requires_grad_ || impl_->requires_grad_);
+    Tensor result = Tensor(impl_->data_ + other.impl_->data_,
+                           other.impl_->requires_grad_ || impl_->requires_grad_);
+    if (result.requires_grad()) {
+        result.impl_->dependencies.push_back(impl_);
+        result.impl_->dependencies.push_back(other.impl_);
+    }
+    return result;
 }
 
+Tensor Tensor::operator-(const Tensor& other) const {
+    Tensor result = Tensor(impl_->data_ - other.impl_->data_,
+                           other.impl_->requires_grad_ || impl_->requires_grad_);
+    if (result.requires_grad()) {
+        result.impl_->dependencies.push_back(impl_);
+        result.impl_->dependencies.push_back(other.impl_);
+    }
+    return result;
+}
+
+Tensor operator+(double scalar, const Tensor& t) {
+    return t + scalar;
+};
+
+Tensor operator-(double scalar, const Tensor& t) {
+    return -1 * t + scalar;
+};
+
+Tensor Tensor::operator+(double scalar) const {
+    Tensor result = Tensor(impl_->data_ + scalar, impl_->requires_grad_);
+    if (result.requires_grad()) {
+        result.impl_->dependencies.push_back(impl_);
+    }
+    return result;
+};
+
+Tensor Tensor::operator-(double scalar) const {
+    Tensor result = Tensor(impl_->data_ - scalar, impl_->requires_grad_);
+    if (result.requires_grad()) {
+        result.impl_->dependencies.push_back(impl_);
+    }
+    return result;
+};
+
 Tensor Tensor::operator*(const Tensor& other) const {
-    return Tensor(impl_->data_ * other.impl_->data_,
-                  other.impl_->requires_grad_ || impl_->requires_grad_);
+    Tensor result = Tensor(impl_->data_ * other.impl_->data_,
+                           other.impl_->requires_grad_ || impl_->requires_grad_);
+    if (result.requires_grad()) {
+        result.impl_->dependencies.push_back(impl_);
+        result.impl_->dependencies.push_back(other.impl_);
+    }
+    return result;
+}
+
+Tensor Tensor::operator/(const Tensor& other) const {
+    Tensor result = Tensor(impl_->data_ / other.impl_->data_,
+                           other.impl_->requires_grad_ || impl_->requires_grad_);
+    if (result.requires_grad()) {
+        result.impl_->dependencies.push_back(impl_);
+        result.impl_->dependencies.push_back(other.impl_);
+    }
+    return result;
 }
 
 std::ostream& operator<<(std::ostream& out, const Tensor& t) {
@@ -88,8 +142,25 @@ std::ostream& operator<<(std::ostream& out, const Tensor& t) {
     return out;
 }
 
-Tensor operator*(const Tensor& t, double scalar) {
-    return Tensor(t.data() * scalar, t.requires_grad());
+Tensor Tensor::operator*(double scalar) const {
+    Tensor result = Tensor(impl_->data_ * scalar, impl_->requires_grad_);
+    if (result.requires_grad()) {
+        result.impl_->dependencies.push_back(impl_);
+    }
+    return result;
+}
+
+Tensor Tensor::operator/(double scalar) const {
+    Tensor result = Tensor(impl_->data_ / scalar, impl_->requires_grad_);
+    if (result.requires_grad()) {
+        result.impl_->dependencies.push_back(impl_);
+    }
+    return result;
+}
+
+Tensor operator/(double scalar, const Tensor& t) {
+    af::array numerator = af::constant(scalar, t.shape(), t.data().type());
+    return Tensor(numerator) / t;
 }
 
 Tensor operator*(double scalar, const Tensor& t) {
@@ -97,20 +168,37 @@ Tensor operator*(double scalar, const Tensor& t) {
 }
 
 Tensor Tensor::matmul(const Tensor& other) const {
-    return Tensor(af::matmul(impl_->data_, other.impl_->data_),
-                  other.impl_->requires_grad_ || impl_->requires_grad_);
+    Tensor result = Tensor(af::matmul(impl_->data_, other.impl_->data_),
+                           other.impl_->requires_grad_ || impl_->requires_grad_);
+    if (result.requires_grad()) {
+        result.impl_->dependencies.push_back(impl_);
+        result.impl_->dependencies.push_back(other.impl_);
+    }
+    return result;
 }
 
 Tensor Tensor::sum(int dim) const {
-    return Tensor(af::sum(impl_->data_, dim), impl_->requires_grad_);
+    Tensor result = Tensor(af::sum(impl_->data_, dim), impl_->requires_grad_);
+    if (result.requires_grad()) {
+        result.impl_->dependencies.push_back(impl_);
+    }
+    return result;
 }
 
 Tensor Tensor::sum() const {
-    return Tensor(af::sum(af::flat(impl_->data_)), impl_->requires_grad_);
+    Tensor result = Tensor(af::sum(af::flat(impl_->data_)), impl_->requires_grad_);
+    if (result.requires_grad()) {
+        result.impl_->dependencies.push_back(impl_);
+    }
+    return result;
 }
 
 Tensor Tensor::transpose() const {
-    return Tensor(impl_->data_.T(), impl_->requires_grad_);
+    Tensor result = Tensor(impl_->data_.T(), impl_->requires_grad_);
+    if (result.requires_grad()) {
+        result.impl_->dependencies.push_back(impl_);
+    }
+    return result;
 }
 
 } // namespace neuro
