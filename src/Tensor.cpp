@@ -73,6 +73,20 @@ Tensor Tensor::operator+(const Tensor& other) const {
     if (result.requires_grad()) {
         result.impl_->dependencies.push_back(impl_);
         result.impl_->dependencies.push_back(other.impl_);
+        auto left = impl_;
+        auto right = other.impl_;
+        std::weak_ptr<TensorImpl> output = result.impl_;
+        result.impl_->backward_fn = [left, right, output]() {
+            auto out = output.lock();
+            if (!out)
+                return;
+
+            if (left->requires_grad_)
+                left->grad_ += out->grad_;
+
+            if (right->requires_grad_)
+                right->grad_ += out->grad_;
+        };
     }
     return result;
 }
@@ -83,6 +97,20 @@ Tensor Tensor::operator-(const Tensor& other) const {
     if (result.requires_grad()) {
         result.impl_->dependencies.push_back(impl_);
         result.impl_->dependencies.push_back(other.impl_);
+        auto left = impl_;
+        auto right = other.impl_;
+        std::weak_ptr<TensorImpl> output = result.impl_;
+        result.impl_->backward_fn = [left, right, output]() {
+            auto out = output.lock();
+            if (!out)
+                return;
+
+            if (left->requires_grad_)
+                left->grad_ += out->grad_;
+
+            if (right->requires_grad_)
+                right->grad_ -= out->grad_;
+        };
     }
     return result;
 }
@@ -99,6 +127,16 @@ Tensor Tensor::operator+(double scalar) const {
     Tensor result = Tensor(impl_->data_ + scalar, impl_->requires_grad_);
     if (result.requires_grad()) {
         result.impl_->dependencies.push_back(impl_);
+        auto left = impl_;
+        std::weak_ptr<TensorImpl> output = result.impl_;
+        result.impl_->backward_fn = [left, output]() {
+            auto out = output.lock();
+            if (!out)
+                return;
+
+            if (left->requires_grad_)
+                left->grad_ += out->grad_;
+        };
     }
     return result;
 };
@@ -107,6 +145,16 @@ Tensor Tensor::operator-(double scalar) const {
     Tensor result = Tensor(impl_->data_ - scalar, impl_->requires_grad_);
     if (result.requires_grad()) {
         result.impl_->dependencies.push_back(impl_);
+        auto left = impl_;
+        std::weak_ptr<TensorImpl> output = result.impl_;
+        result.impl_->backward_fn = [left, output]() {
+            auto out = output.lock();
+            if (!out)
+                return;
+
+            if (left->requires_grad_)
+                left->grad_ += out->grad_;
+        };
     }
     return result;
 };
@@ -117,6 +165,20 @@ Tensor Tensor::operator*(const Tensor& other) const {
     if (result.requires_grad()) {
         result.impl_->dependencies.push_back(impl_);
         result.impl_->dependencies.push_back(other.impl_);
+        auto left = impl_;
+        auto right = other.impl_;
+        std::weak_ptr<TensorImpl> output = result.impl_;
+        result.impl_->backward_fn = [left, right, output]() {
+            auto out = output.lock();
+            if (!out)
+                return;
+
+            if (left->requires_grad_)
+                left->grad_ += out->grad_ * right->data_;
+
+            if (right->requires_grad_)
+                right->grad_ += out->grad_ * left->data_;
+        };
     }
     return result;
 }
@@ -127,6 +189,20 @@ Tensor Tensor::operator/(const Tensor& other) const {
     if (result.requires_grad()) {
         result.impl_->dependencies.push_back(impl_);
         result.impl_->dependencies.push_back(other.impl_);
+        auto left = impl_;
+        auto right = other.impl_;
+        std::weak_ptr<TensorImpl> output = result.impl_;
+        result.impl_->backward_fn = [left, right, output]() {
+            auto out = output.lock();
+            if (!out)
+                return;
+
+            if (left->requires_grad_)
+                left->grad_ += out->grad_ / right->data_;
+
+            if (right->requires_grad_)
+                right->grad_ -= out->grad_ * left->data_ / (right->data_ * right->data_);
+        };
     }
     return result;
 }
@@ -146,6 +222,16 @@ Tensor Tensor::operator*(double scalar) const {
     Tensor result = Tensor(impl_->data_ * scalar, impl_->requires_grad_);
     if (result.requires_grad()) {
         result.impl_->dependencies.push_back(impl_);
+        auto left = impl_;
+        std::weak_ptr<TensorImpl> output = result.impl_;
+        result.impl_->backward_fn = [left, scalar, output]() {
+            auto out = output.lock();
+            if (!out)
+                return;
+
+            if (left->requires_grad_)
+                left->grad_ += out->grad_ * scalar;
+        };
     }
     return result;
 }
@@ -154,6 +240,16 @@ Tensor Tensor::operator/(double scalar) const {
     Tensor result = Tensor(impl_->data_ / scalar, impl_->requires_grad_);
     if (result.requires_grad()) {
         result.impl_->dependencies.push_back(impl_);
+        auto left = impl_;
+        std::weak_ptr<TensorImpl> output = result.impl_;
+        result.impl_->backward_fn = [left, scalar, output]() {
+            auto out = output.lock();
+            if (!out)
+                return;
+
+            if (left->requires_grad_)
+                left->grad_ += out->grad_ / scalar;
+        };
     }
     return result;
 }
