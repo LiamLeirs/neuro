@@ -19,6 +19,10 @@ Tensor Tensor::operator+(const Tensor& other) const {
     return Tensor(data_ + other.data_);
 }
 
+Tensor Tensor::operator*(const Tensor& other) const {
+    return Tensor(data_ * other.data_);
+}
+
 std::ostream& operator<<(std::ostream& out, const Tensor& t) {
     char* str = nullptr;
     af::toString(&str, "", t.data(), 4, true);
@@ -29,4 +33,12 @@ std::ostream& operator<<(std::ostream& out, const Tensor& t) {
     }
     return out;
 }
+
+Tensor operator*(const Tensor& t, double scalar) {
+    return Tensor(t.data() * scalar);
+};
+
+Tensor operator*(double scalar, const Tensor& t) {
+    return t * scalar;
+};
 } // namespace neuro
