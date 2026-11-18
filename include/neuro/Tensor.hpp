@@ -13,6 +13,7 @@ public:
     Tensor(std::initializer_list<float> value);
     Tensor(std::initializer_list<std::initializer_list<float>> value);
     const af::array& data() const;
+    const af::array& grad() const;
     af::dim4 shape() const;
     Tensor operator+(const Tensor& other) const;
     Tensor operator*(const Tensor& other) const;
@@ -23,6 +24,7 @@ public:
 
 private:
     af::array data_;
+    af::array grad_;
 };
 
 std::ostream& operator<<(std::ostream& out, const Tensor& t);
