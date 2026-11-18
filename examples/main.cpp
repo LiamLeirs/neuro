@@ -8,6 +8,6 @@
 
 int main() {
     neuro::Tensor t = {{1, 2, 3}, {4, 5, 6}};
-    std::cout << t;
+    std::cout << t.transpose();
     return 0;
 }

@@ -83,4 +83,8 @@ Tensor Tensor::sum() const {
     return Tensor(af::sum(af::flat(data_)));
 }
 
+Tensor Tensor::transpose() const {
+    return Tensor(data_.T());
+}
+
 } // namespace neuro

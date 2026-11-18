@@ -19,6 +19,7 @@ public:
     Tensor matmul(const Tensor& other) const;
     Tensor sum(int dim) const;
     Tensor sum() const;
+    Tensor transpose() const;
 
 private:
     af::array data_;
