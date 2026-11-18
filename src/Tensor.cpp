@@ -1,7 +1,7 @@
 #include "neuro/Tensor.hpp"
 
+#include <af/blas.h>
 #include <af/util.h>
-#include <iostream>
 
 namespace neuro {
 
@@ -36,9 +36,13 @@ std::ostream& operator<<(std::ostream& out, const Tensor& t) {
 
 Tensor operator*(const Tensor& t, double scalar) {
     return Tensor(t.data() * scalar);
-};
+}
 
 Tensor operator*(double scalar, const Tensor& t) {
     return t * scalar;
-};
+}
+
+Tensor Tensor::matmul(const Tensor& other) const {
+    return Tensor(af::matmul(data_, other.data_));
+}
 } // namespace neuro

@@ -13,6 +13,7 @@ public:
     af::dim4 shape() const;
     Tensor operator+(const Tensor& other) const;
     Tensor operator*(const Tensor& other) const;
+    Tensor matmul(const Tensor& other) const;
 
 private:
     af::array data_;

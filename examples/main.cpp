@@ -11,7 +11,7 @@ int main() {
     af::array b = af::randu(3, 3);
     neuro::Tensor t1(a);
     neuro::Tensor t2(b);
-    neuro::Tensor t3 = t1 * t2;
-    std::cout << 5 * t3 * 2;
+    neuro::Tensor t3 = t1.matmul(t2);
+    std::cout << t3;
     return 0;
 }
