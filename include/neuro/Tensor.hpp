@@ -1,8 +1,11 @@
 #pragma once
 
+#include "neuro/TensorImpl.hpp"
+
 #include <af/array.h>
 #include <af/dim4.hpp>
 #include <initializer_list>
+#include <memory>
 #include <ostream>
 
 namespace neuro {
@@ -24,9 +27,7 @@ public:
     bool requires_grad() const;
 
 private:
-    af::array data_;
-    af::array grad_;
-    bool requires_grad_;
+    std::shared_ptr<TensorImpl> impl_;
 };
 
 std::ostream& operator<<(std::ostream& out, const Tensor& t);

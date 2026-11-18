@@ -1,5 +1,7 @@
 #include "neuro/Tensor.hpp"
 
+#include "neuro/TensorImpl.hpp"
+
 #include <af/algorithm.h>
 #include <af/array.h>
 #include <af/blas.h>
@@ -13,19 +15,25 @@
 
 namespace neuro {
 
-Tensor::Tensor(const af::array& data, bool requires_grad)
-    : data_(data), grad_(af::constant(0, data.dims(), data_.type())),
-      requires_grad_(requires_grad) {}
+Tensor::Tensor(const af::array& data, bool requires_grad) : impl_(std::make_shared<TensorImpl>()) {
+    impl_->data_ = data;
+    impl_->grad_ = af::constant(0, data.dims(), impl_->data_.type());
+    impl_->requires_grad_ = requires_grad;
+}
 
 Tensor::Tensor(std::initializer_list<float> value, bool requires_grad)
-    : data_(af::array(value)), grad_(af::constant(0, data_.dims())), requires_grad_(requires_grad) {
+    : impl_(std::make_shared<TensorImpl>()) {
+    impl_->data_ = af::array(value);
+    impl_->grad_ = af::constant(0, impl_->data_.dims());
+    impl_->requires_grad_ = requires_grad;
 }
 
 Tensor::Tensor(std::initializer_list<std::initializer_list<float>> value, bool requires_grad)
-    : requires_grad_(requires_grad) {
+    : impl_(std::make_shared<TensorImpl>()) {
+    impl_->requires_grad_ = requires_grad;
     if (value.size() == 0) {
-        data_ = af::array();
-        grad_ = af::array();
+        impl_->data_ = af::array();
+        impl_->grad_ = af::array();
         return;
     }
     std::size_t rowSize = value.begin()->size();
@@ -39,32 +47,34 @@ Tensor::Tensor(std::initializer_list<std::initializer_list<float>> value, bool r
             array.push_back(scalar);
         }
     }
-    data_ = af::array(rowSize, value.size(), array.data(), afHost).T();
-    grad_ = af::constant(0, data_.dims());
+    impl_->data_ = af::array(rowSize, value.size(), array.data(), afHost).T();
+    impl_->grad_ = af::constant(0, impl_->data_.dims());
 }
 
 const af::array& Tensor::data() const {
-    return data_;
+    return impl_->data_;
 }
 
 const af::array& Tensor::grad() const {
-    return grad_;
+    return impl_->grad_;
 }
 
 bool Tensor::requires_grad() const {
-    return requires_grad_;
+    return impl_->requires_grad_;
 }
 
 af::dim4 Tensor::shape() const {
-    return data_.dims();
+    return impl_->data_.dims();
 }
 
 Tensor Tensor::operator+(const Tensor& other) const {
-    return Tensor(data_ + other.data_, other.requires_grad_ || requires_grad_);
+    return Tensor(impl_->data_ + other.impl_->data_,
+                  other.impl_->requires_grad_ || impl_->requires_grad_);
 }
 
 Tensor Tensor::operator*(const Tensor& other) const {
-    return Tensor(data_ * other.data_, other.requires_grad_ || requires_grad_);
+    return Tensor(impl_->data_ * other.impl_->data_,
+                  other.impl_->requires_grad_ || impl_->requires_grad_);
 }
 
 std::ostream& operator<<(std::ostream& out, const Tensor& t) {
@@ -87,19 +97,20 @@ Tensor operator*(double scalar, const Tensor& t) {
 }
 
 Tensor Tensor::matmul(const Tensor& other) const {
-    return Tensor(af::matmul(data_, other.data_), other.requires_grad_ || requires_grad_);
+    return Tensor(af::matmul(impl_->data_, other.impl_->data_),
+                  other.impl_->requires_grad_ || impl_->requires_grad_);
 }
 
 Tensor Tensor::sum(int dim) const {
-    return Tensor(af::sum(data_, dim), requires_grad_);
+    return Tensor(af::sum(impl_->data_, dim), impl_->requires_grad_);
 }
 
 Tensor Tensor::sum() const {
-    return Tensor(af::sum(af::flat(data_)), requires_grad_);
+    return Tensor(af::sum(af::flat(impl_->data_)), impl_->requires_grad_);
 }
 
 Tensor Tensor::transpose() const {
-    return Tensor(data_.T(), requires_grad_);
+    return Tensor(impl_->data_.T(), impl_->requires_grad_);
 }
 
 } // namespace neuro
