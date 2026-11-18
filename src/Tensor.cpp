@@ -1,6 +1,8 @@
 #include "neuro/Tensor.hpp"
 
+#include <af/algorithm.h>
 #include <af/blas.h>
+#include <af/data.h>
 #include <af/util.h>
 
 namespace neuro {
@@ -45,4 +47,13 @@ Tensor operator*(double scalar, const Tensor& t) {
 Tensor Tensor::matmul(const Tensor& other) const {
     return Tensor(af::matmul(data_, other.data_));
 }
+
+Tensor Tensor::sum(int dim) const {
+    return Tensor(af::sum(data_, dim));
+}
+
+Tensor Tensor::sum() const {
+    return Tensor(af::sum(af::flat(data_)));
+}
+
 } // namespace neuro
