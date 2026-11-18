@@ -56,6 +56,8 @@ private:
     void findTopoSort(const std::shared_ptr<TensorImpl>& node,
                       std::unordered_set<TensorImpl*>& visited,
                       std::vector<std::shared_ptr<TensorImpl>>& topo) const;
+
+    friend class SGD;
 };
 
 std::ostream& operator<<(std::ostream& out, const Tensor& t);

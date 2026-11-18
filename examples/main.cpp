@@ -1,58 +1,44 @@
 
 #include "neuro/Tensor.hpp"
+#include "neuro/optim/SGD.hpp"
 
-#include <af/algorithm.h>
-#include <af/arith.h>
-#include <af/array.h>
+#include <cassert>
+#include <cmath>
 #include <iostream>
+#include <vector>
 
-using neuro::Tensor;
+using namespace neuro;
 
-void checkGrad(const char* name, const Tensor& actual, const Tensor& expected) {
-    std::cout << "\n=== Gradient " << name << " ===\n";
-
-    std::cout << "Actual:\n" << Tensor(actual.grad()) << '\n';
-    std::cout << "Expected:\n" << expected << '\n';
-
-    if (actual.grad().dims() != expected.data().dims()) {
-        std::cout << "FAIL: Shape mismatch!\n";
-        return;
-    }
-
-    bool passed = af::allTrue<bool>(af::abs(actual.grad() - expected.data()) < 1e-5);
-
-    std::cout << (passed ? "PASS" : "FAIL") << '\n';
+bool approximatelyEqual(float a, float b, float epsilon = 1e-5f) {
+    return std::abs(a - b) < epsilon;
 }
 
 int main() {
-    // A: 2x3
-    Tensor A({{1.0, 2.0, 3.0}, {4.0, 5.0, 6.0}}, true);
+    Tensor w({5.0f}, true);
+    SGD optimizer({w}, 0.1);
 
-    // B: 3x2
-    Tensor B({{2.0, 1.0}, {0.0, 3.0}, {4.0, 2.0}}, true);
+    // Forward pass: L = w^2
+    Tensor loss = w * w;
 
-    // C = A @ B
-    Tensor C = A.matmul(B);
-
-    // L = 2 * sum(C^T)
-    Tensor loss = C.transpose().sum() * 2.0;
-
-    std::cout << "=== Forward pass ===\n";
-    std::cout << "C:\n" << C << '\n';
-    std::cout << "Loss:\n" << loss << '\n';
-
+    // Backpropagation: dL/dw = 2w = 10
     loss.backward();
 
-    // dL/dA = 2 * ones(2,2) @ B^T
-    Tensor expectedA({{6.0, 6.0, 12.0}, {6.0, 6.0, 12.0}});
+    assert(approximatelyEqual(w.grad().scalar<float>(), 10.0f));
 
-    // dL/dB = 2 * A^T @ ones(2,2)
-    Tensor expectedB({{10.0, 10.0}, {14.0, 14.0}, {18.0, 18.0}});
+    // SGD: w = 5 - 0.1 * 10 = 4
+    optimizer.step();
 
-    checkGrad("A", A, expectedA);
-    checkGrad("B", B, expectedB);
+    assert(approximatelyEqual(w.data().scalar<float>(), 4.0f));
 
-    std::cout << "\nExpected loss: 180\n";
+    // SGD should not modify the gradient
+    assert(approximatelyEqual(w.grad().scalar<float>(), 10.0f));
+
+    // Reset gradients
+    optimizer.zeroGrad();
+
+    assert(approximatelyEqual(w.grad().scalar<float>(), 0.0f));
+
+    std::cout << "All SGD tests passed!\n";
 
     return 0;
 }

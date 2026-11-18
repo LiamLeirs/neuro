@@ -9,6 +9,7 @@ find_package(ArrayFire REQUIRED)
 
 add_library(neuro
     src/Tensor.cpp
+    src/optim/SGD.cpp
 )
 
 target_include_directories(neuro
