@@ -60,11 +60,11 @@ af::dim4 Tensor::shape() const {
 }
 
 Tensor Tensor::operator+(const Tensor& other) const {
-    return Tensor(data_ + other.data_);
+    return Tensor(data_ + other.data_, other.requires_grad_ || requires_grad_);
 }
 
 Tensor Tensor::operator*(const Tensor& other) const {
-    return Tensor(data_ * other.data_);
+    return Tensor(data_ * other.data_, other.requires_grad_ || requires_grad_);
 }
 
 std::ostream& operator<<(std::ostream& out, const Tensor& t) {
@@ -79,7 +79,7 @@ std::ostream& operator<<(std::ostream& out, const Tensor& t) {
 }
 
 Tensor operator*(const Tensor& t, double scalar) {
-    return Tensor(t.data() * scalar);
+    return Tensor(t.data() * scalar, t.requires_grad());
 }
 
 Tensor operator*(double scalar, const Tensor& t) {
@@ -87,19 +87,19 @@ Tensor operator*(double scalar, const Tensor& t) {
 }
 
 Tensor Tensor::matmul(const Tensor& other) const {
-    return Tensor(af::matmul(data_, other.data_));
+    return Tensor(af::matmul(data_, other.data_), other.requires_grad_ || requires_grad_);
 }
 
 Tensor Tensor::sum(int dim) const {
-    return Tensor(af::sum(data_, dim));
+    return Tensor(af::sum(data_, dim), requires_grad_);
 }
 
 Tensor Tensor::sum() const {
-    return Tensor(af::sum(af::flat(data_)));
+    return Tensor(af::sum(af::flat(data_)), requires_grad_);
 }
 
 Tensor Tensor::transpose() const {
-    return Tensor(data_.T());
+    return Tensor(data_.T(), requires_grad_);
 }
 
 } // namespace neuro
