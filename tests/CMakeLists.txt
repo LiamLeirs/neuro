@@ -1,5 +1,6 @@
 add_executable(neuro_tests
     test_slicing.cpp
+    test_tensor.cpp
 )
 
 target_link_libraries(neuro_tests
