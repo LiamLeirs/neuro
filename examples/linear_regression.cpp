@@ -2,6 +2,7 @@
 #include "neuro/Tensor.hpp"
 #include "neuro/optim/SGD.hpp"
 
+#include <algorithm>
 #include <initializer_list>
 #include <iostream>
 
@@ -23,18 +24,24 @@ int main() {
 
     SGD optim({w, b}, 1e-2);
 
+    int BATCH_SIZE = 3;
+
     for (int epoch = 0; epoch < 500; epoch++) {
-        Tensor predicted = input.matmul(w) + b;
+        float totalLoss = 0;
+        for (int start = 0; start < input.data().dims(0); start += BATCH_SIZE) {
+            int end = std::min(start + BATCH_SIZE, (int)input.data().dims(0));
+            Tensor predicted = input.slice(start, end).matmul(w) + b;
 
-        Tensor error = predicted - target;
-        Tensor loss = (error * error).sum() / target.data().elements();
+            Tensor error = predicted - target.slice(start, end);
+            Tensor loss = (error * error).sum() / (end - start);
+            totalLoss += loss.data().scalar<float>() * (end - start);
 
-        optim.zeroGrad();
-        loss.backward();
-        optim.step();
-
+            optim.zeroGrad();
+            loss.backward();
+            optim.step();
+        }
         if (epoch % 50 == 0) {
-            std::cout << "Epoch " << epoch << " | Loss: " << loss.data().scalar<float>()
+            std::cout << "Epoch " << epoch << " | Loss: " << totalLoss / input.data().dims(0)
                       << " | w1: " << w.data()(0).scalar<float>()
                       << " | w2: " << w.data()(1).scalar<float>()
                       << " | b: " << b.data().scalar<float>() << '\n';
