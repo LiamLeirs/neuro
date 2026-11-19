@@ -21,7 +21,7 @@ target_link_libraries(neuro
 )
 
 add_executable(neuro_example
-    examples/linear_regression.cpp
+    examples/main.cpp
     include/neuro/TensorImpl.hpp
 )
 

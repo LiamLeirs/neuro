@@ -260,7 +260,21 @@ Tensor Tensor::operator[](int index) const {
     if (!impl_->data_.isvector())
         throw std::invalid_argument("Tensor indexing only allowed for one dimensional tensors");
     return makeResult(impl_->data_(index), {impl_}, [parent = impl_, index](const af::array& grad) {
-        parent->grad_(index) += grad;
+        if (parent->requires_grad_)
+            parent->grad_(index) += grad;
+    });
+};
+
+Tensor Tensor::slice(int start, int end) const {
+    if (start >= end) {
+        throw std::invalid_argument("Start must be smaller than end");
+    }
+    if (start < 0 || end > impl_->data_.dims(0))
+        throw std::out_of_range("Index out of bounds");
+    af::array t = impl_->data_.rows(start, end - 1);
+    return makeResult(t, {impl_}, [parent = impl_, start, end](const af::array& grad) {
+        if (parent->requires_grad_)
+            parent->grad_.rows(start, end - 1) += grad;
     });
 };
 

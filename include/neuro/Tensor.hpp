@@ -38,6 +38,7 @@ public:
     Tensor sum(int dim) const;
     Tensor sum() const;
     Tensor transpose() const;
+    Tensor slice(int start, int end) const;
 
     void backward();
     void zeroGrad();
