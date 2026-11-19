@@ -135,13 +135,13 @@ Tensor Tensor::operator-(const Tensor& other) const {
     auto left = impl_;
     auto right = other.impl_;
 
-    return makeResult(left->data_ - right->data_, {left, right},
+    return makeResult(af::batchFunc(left->data_, right->data_, af::operator-), {left, right},
                       [left, right](const af::array& grad) {
                           if (left->requires_grad_)
-                              left->grad_ += grad;
+                              left->grad_ += sumToShape(grad, left->grad_.dims());
 
                           if (right->requires_grad_)
-                              right->grad_ -= grad;
+                              right->grad_ -= sumToShape(grad, right->grad_.dims());
                       });
 }
 
@@ -167,14 +167,20 @@ Tensor Tensor::operator/(const Tensor& other) const {
     auto left = impl_;
     auto right = other.impl_;
 
-    return makeResult(left->data_ / right->data_, {left, right},
-                      [left, right](const af::array& grad) {
-                          if (left->requires_grad_)
-                              left->grad_ += grad / right->data_;
+    return makeResult(
+        af::batchFunc(left->data_, right->data_, af::operator/), {left, right},
+        [left, right](const af::array& grad) {
+            if (left->requires_grad_)
+                left->grad_ += sumToShape(af::batchFunc(grad, right->data_, af::operator/),
+                                          left->data_.dims());
 
-                          if (right->requires_grad_)
-                              right->grad_ -= grad * left->data_ / (right->data_ * right->data_);
-                      });
+            if (right->requires_grad_)
+                right->grad_ -= sumToShape(
+                    af::batchFunc(af::batchFunc(grad, left->data_, af::operator*),
+                                  af::batchFunc(right->data_, right->data_, af::operator*),
+                                  af::operator/),
+                    right->data_.dims());
+        });
 }
 
 // ==================== Scalar Arithmetic ====================
