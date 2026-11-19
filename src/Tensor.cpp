@@ -367,11 +367,18 @@ std::ostream& operator<<(std::ostream& out, const Tensor& t) {
 af::array Tensor::sumToShape(const af::array& grad, const af::dim4& targetShape) {
     if (grad.dims() == targetShape)
         return grad;
-    if (targetShape.elements() == 1) {
-        // Sum gradients
-        return af::sum(af::flat(grad));
+    af::array result = grad;
+    for (int dim = 0; dim < 4; ++dim) {
+        int d = result.dims()[dim];
+        int targetD = targetShape[dim];
+        if (d == targetD)
+            continue;
+        else if (targetD == 1)
+            result = af::sum(result, dim);
+        else
+            throw std::invalid_argument("Cannot broadcast array");
     }
-    throw std::invalid_argument("Unsupported gradient shape for broadcasting");
+    return result;
 }
 
 } // namespace neuro
