@@ -2,6 +2,7 @@ add_executable(neuro_tests
     test_slicing.cpp
     test_tensor.cpp
     test_autograd.cpp
+    test_broadcasting.cpp
 )
 
 target_link_libraries(neuro_tests
