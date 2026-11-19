@@ -21,10 +21,26 @@ target_link_libraries(neuro
 )
 
 add_executable(neuro_example
-    examples/main.cpp
-    include/neuro/TensorImpl.hpp
+    examples/linear_regression.cpp
 )
 
 target_link_libraries(neuro_example
     PRIVATE neuro
 )
+
+include(CTest)
+
+if(BUILD_TESTING)
+    include(FetchContent)
+
+    FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.zip
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+
+    set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
+
+    add_subdirectory(tests)
+endif()
