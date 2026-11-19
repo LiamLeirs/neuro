@@ -242,6 +242,16 @@ Tensor Tensor::matmul(const Tensor& other) const {
                       });
 }
 
+Tensor Tensor::operator[](int index) const {
+    if (index < 0 || index >= impl_->data_.elements())
+        throw std::out_of_range("Index out of bounds");
+    if (!impl_->data_.isvector())
+        throw std::invalid_argument("Tensor indexing only allowed for one dimensional tensors");
+    return makeResult(impl_->data_(index), {impl_}, [parent = impl_, index](const af::array& grad) {
+        parent->grad_(index) += grad;
+    });
+};
+
 // ==================== Reductions ====================
 
 Tensor Tensor::sum(int dim) const {
