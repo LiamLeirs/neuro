@@ -4,6 +4,7 @@
 #include <af/arith.h>
 #include <af/blas.h>
 #include <af/data.h>
+#include <af/gfor.h>
 #include <af/util.h>
 #include <cstddef>
 #include <stdexcept>
@@ -119,13 +120,13 @@ Tensor Tensor::operator+(const Tensor& other) const {
     auto left = impl_;
     auto right = other.impl_;
 
-    return makeResult(left->data_ + right->data_, {left, right},
+    return makeResult(af::batchFunc(left->data_, right->data_, af::operator+), {left, right},
                       [left, right](const af::array& grad) {
                           if (left->requires_grad_)
-                              left->grad_ += grad;
+                              left->grad_ += sumToShape(grad, left->grad_.dims());
 
                           if (right->requires_grad_)
-                              right->grad_ += grad;
+                              right->grad_ += sumToShape(grad, right->grad_.dims());
                       });
 }
 
@@ -348,6 +349,18 @@ std::ostream& operator<<(std::ostream& out, const Tensor& t) {
         out << str.data;
 
     return out;
+}
+
+// ==================== Broadcasting ====================
+
+af::array Tensor::sumToShape(const af::array& grad, const af::dim4& targetShape) {
+    if (grad.dims() == targetShape)
+        return grad;
+    if (targetShape.elements() == 1) {
+        // Sum gradients
+        return af::sum(af::flat(grad));
+    }
+    throw std::invalid_argument("Unsupported gradient shape for broadcasting");
 }
 
 } // namespace neuro

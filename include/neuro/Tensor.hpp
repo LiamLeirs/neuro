@@ -58,6 +58,8 @@ private:
                       std::unordered_set<TensorImpl*>& visited,
                       std::vector<std::shared_ptr<TensorImpl>>& topo) const;
 
+    static af::array sumToShape(const af::array& grad, const af::dim4& targetShape);
+
     friend class SGD;
 };
 
