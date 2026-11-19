@@ -2,85 +2,93 @@
 #include "../include/neuro/Tensor.hpp"
 
 #include <arrayfire.h>
-#include <cassert>
 #include <cmath>
 #include <iostream>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 using neuro::Tensor;
 
-void checkArray(const af::array& actual, const std::vector<float>& expected) {
-    assert(actual.elements() == expected.size());
+void checkArray(const af::array& actual, const std::vector<float>& expected,
+                const std::string& name) {
+    if (actual.elements() != expected.size()) {
+        throw std::runtime_error(name + ": incorrect element count");
+    }
 
     std::vector<float> values(expected.size());
     actual.host(values.data());
 
     for (size_t i = 0; i < expected.size(); ++i) {
-        assert(std::abs(values[i] - expected[i]) < 1e-5f);
+        if (std::abs(values[i] - expected[i]) > 1e-5f) {
+            throw std::runtime_error(name + ": mismatch at index " + std::to_string(i) +
+                                     " (expected " + std::to_string(expected[i]) + ", got " +
+                                     std::to_string(values[i]) + ")");
+        }
     }
 }
 
-void testVectorPlusScalar() {
+void testVectorTimesScalar() {
     Tensor x({1.0f, 2.0f, 3.0f}, true);
-    Tensor b({2.0f}, true);
+    Tensor w({2.0f}, true);
 
-    Tensor y = x + b;
-    checkArray(y.data(), {3.0f, 4.0f, 5.0f});
+    Tensor y = x * w;
+
+    checkArray(y.data(), {2.0f, 4.0f, 6.0f}, "Forward");
 
     Tensor loss = y.sum();
     loss.backward();
 
-    checkArray(x.grad(), {1.0f, 1.0f, 1.0f});
-    checkArray(b.grad(), {3.0f});
+    checkArray(x.grad(), {2.0f, 2.0f, 2.0f}, "x.grad");
+    checkArray(w.grad(), {6.0f}, "w.grad");
 
-    std::cout << "[PASS] Vector + scalar\n";
+    std::cout << "[PASS] Vector * scalar\n";
 }
 
-void testScalarPlusVector() {
-    Tensor b({2.0f}, true);
+void testScalarTimesVector() {
+    Tensor w({2.0f}, true);
     Tensor x({1.0f, 2.0f, 3.0f}, true);
 
-    Tensor y = b + x;
-    checkArray(y.data(), {3.0f, 4.0f, 5.0f});
+    Tensor y = w * x;
+
+    checkArray(y.data(), {2.0f, 4.0f, 6.0f}, "Forward");
 
     Tensor loss = y.sum();
     loss.backward();
 
-    checkArray(b.grad(), {3.0f});
-    checkArray(x.grad(), {1.0f, 1.0f, 1.0f});
+    checkArray(w.grad(), {6.0f}, "w.grad");
+    checkArray(x.grad(), {2.0f, 2.0f, 2.0f}, "x.grad");
 
-    std::cout << "[PASS] Scalar + vector\n";
+    std::cout << "[PASS] Scalar * vector\n";
 }
 
-void testVectorPlusVector() {
+void testVectorTimesVector() {
     Tensor x({1.0f, 2.0f, 3.0f}, true);
     Tensor y({4.0f, 5.0f, 6.0f}, true);
 
-    Tensor z = x + y;
-    checkArray(z.data(), {5.0f, 7.0f, 9.0f});
+    Tensor z = x * y;
+
+    checkArray(z.data(), {4.0f, 10.0f, 18.0f}, "Forward");
 
     Tensor loss = z.sum();
     loss.backward();
 
-    checkArray(x.grad(), {1.0f, 1.0f, 1.0f});
-    checkArray(y.grad(), {1.0f, 1.0f, 1.0f});
+    checkArray(x.grad(), {4.0f, 5.0f, 6.0f}, "x.grad");
+    checkArray(y.grad(), {1.0f, 2.0f, 3.0f}, "y.grad");
 
-    std::cout << "[PASS] Vector + vector\n";
+    std::cout << "[PASS] Vector * vector\n";
 }
 
 int main() {
     try {
-        testVectorPlusScalar();
-        testScalarPlusVector();
-        testVectorPlusVector();
+        testVectorTimesScalar();
+        testScalarTimesVector();
+        testVectorTimesVector();
 
-        std::cout << "\nAll broadcasting tests passed!\n";
+        std::cout << "\nAll multiplication broadcasting tests passed!\n";
         return 0;
-    } catch (const af::exception& e) {
-        std::cerr << "ArrayFire error: " << e.what() << '\n';
-        return 1;
     } catch (const std::exception& e) {
-        std::cerr << "Test failed: " << e.what() << '\n';
+        std::cerr << "[FAIL] " << e.what() << '\n';
         return 1;
     }
 }
