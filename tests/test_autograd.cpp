@@ -1,0 +1,202 @@
+
+#include "TestUtils.hpp"
+#include "neuro/Tensor.hpp"
+
+#include <arrayfire.h>
+#include <gtest/gtest.h>
+#include <initializer_list>
+#include <stdexcept>
+
+using namespace neuro;
+using neuro::testing::expectArrayNear;
+
+using Matrix = std::initializer_list<std::initializer_list<float>>;
+
+// ==================== Basic Gradients ====================
+
+TEST(Autograd, Addition) {
+    Tensor a({1, 2, 3}, true);
+    Tensor b({4, 5, 6}, true);
+
+    (a + b).sum().backward();
+
+    expectArrayNear(a.grad(), af::dim4(3), {1, 1, 1});
+    expectArrayNear(b.grad(), af::dim4(3), {1, 1, 1});
+}
+
+TEST(Autograd, Subtraction) {
+    Tensor a({1, 2, 3}, true);
+    Tensor b({4, 5, 6}, true);
+
+    (a - b).sum().backward();
+
+    expectArrayNear(a.grad(), af::dim4(3), {1, 1, 1});
+    expectArrayNear(b.grad(), af::dim4(3), {-1, -1, -1});
+}
+
+TEST(Autograd, Multiplication) {
+    Tensor a({1, 2, 3}, true);
+    Tensor b({4, 5, 6}, true);
+
+    (a * b).sum().backward();
+
+    expectArrayNear(a.grad(), af::dim4(3), {4, 5, 6});
+    expectArrayNear(b.grad(), af::dim4(3), {1, 2, 3});
+}
+
+TEST(Autograd, Division) {
+    Tensor a({2, 4, 6}, true);
+    Tensor b({2, 2, 3}, true);
+
+    (a / b).sum().backward();
+
+    expectArrayNear(a.grad(), af::dim4(3), {0.5f, 0.5f, 1.0f / 3.0f});
+
+    expectArrayNear(b.grad(), af::dim4(3), {-0.5f, -1.0f, -2.0f / 3.0f});
+}
+
+// ==================== Scalar Gradients ====================
+
+TEST(AutogradScalar, Multiplication) {
+    Tensor x({1, 2, 3}, true);
+
+    (x * 3.0).sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(3), {3, 3, 3});
+}
+
+TEST(AutogradScalar, Division) {
+    Tensor x({2, 4, 6}, true);
+
+    (x / 2.0).sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(3), {0.5f, 0.5f, 0.5f});
+}
+
+TEST(AutogradScalar, ReverseSubtraction) {
+    Tensor x({1, 2, 3}, true);
+
+    (10.0 - x).sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(3), {-1, -1, -1});
+}
+
+TEST(AutogradScalar, ReverseDivision) {
+    Tensor x({2, 4, 8}, true);
+
+    (16.0 / x).sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(3), {-4.0f, -1.0f, -0.25f});
+}
+
+// ==================== Computational Graphs ====================
+
+TEST(AutogradGraph, ChainRule) {
+    Tensor x({2.0f}, true);
+
+    Tensor y = x * x;
+    Tensor z = y * 3.0;
+
+    z.backward();
+
+    // z = 3x², dz/dx = 6x = 12
+    expectArrayNear(x.grad(), af::dim4(1), {12});
+}
+
+TEST(AutogradGraph, SharedDependency) {
+    Tensor x({2.0f}, true);
+
+    Tensor y = x * x;
+    Tensor z = y + y;
+
+    z.backward();
+
+    // z = 2x², dz/dx = 4x = 8
+    expectArrayNear(x.grad(), af::dim4(1), {8});
+}
+
+TEST(AutogradGraph, Branching) {
+    Tensor x({3.0f}, true);
+
+    Tensor a = x * 2.0;
+    Tensor b = x * x;
+    Tensor loss = a + b;
+
+    loss.backward();
+
+    // d(2x + x²)/dx = 2 + 2x = 8
+    expectArrayNear(x.grad(), af::dim4(1), {8});
+}
+
+TEST(AutogradGraph, NoGradPropagation) {
+    Tensor a({2.0f}, true);
+    Tensor b({3.0f}, false);
+
+    (a * b).backward();
+
+    expectArrayNear(a.grad(), af::dim4(1), {3});
+    expectArrayNear(b.grad(), af::dim4(1), {0});
+}
+
+TEST(AutogradGraph, ZeroGrad) {
+    Tensor x({2.0f}, true);
+
+    (x * x).backward();
+    expectArrayNear(x.grad(), af::dim4(1), {4});
+
+    x.zeroGrad();
+    expectArrayNear(x.grad(), af::dim4(1), {0});
+}
+
+TEST(AutogradGraph, NonScalarBackwardRejected) {
+    Tensor x({1, 2, 3}, true);
+
+    EXPECT_THROW(x.backward(), std::invalid_argument);
+}
+
+// ==================== Matrix Gradients ====================
+
+TEST(AutogradMatrix, Matmul) {
+    Tensor a(Matrix{{1, 2}, {3, 4}}, true);
+
+    Tensor b(Matrix{{5, 6}, {7, 8}}, true);
+
+    a.matmul(b).sum().backward();
+
+    expectArrayNear(a.grad(), af::dim4(2, 2), {11, 11, 15, 15});
+
+    expectArrayNear(b.grad(), af::dim4(2, 2), {4, 6, 4, 6});
+}
+
+TEST(AutogradMatrix, Transpose) {
+    Tensor x(Matrix{{1, 2, 3}, {4, 5, 6}}, true);
+
+    x.transpose().sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(2, 3), {1, 1, 1, 1, 1, 1});
+}
+
+TEST(AutogradMatrix, SumDimensionZero) {
+    Tensor x(Matrix{{1, 2, 3}, {4, 5, 6}}, true);
+
+    x.sum(0).sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(2, 3), {1, 1, 1, 1, 1, 1});
+}
+
+TEST(AutogradMatrix, SumDimensionOne) {
+    Tensor x(Matrix{{1, 2, 3}, {4, 5, 6}}, true);
+
+    x.sum(1).sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(2, 3), {1, 1, 1, 1, 1, 1});
+}
+
+TEST(AutogradMatrix, Indexing) {
+    Tensor x({2, 4, 6}, true);
+
+    Tensor loss = x[1] * x[1];
+    loss.backward();
+
+    expectArrayNear(x.grad(), af::dim4(3), {0, 8, 0});
+}
