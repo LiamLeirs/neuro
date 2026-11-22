@@ -1,7 +1,10 @@
 #pragma once
 #include "neuro/Tensor.hpp"
 
+#include <algorithm>
+#include <random>
 #include <utility>
+#include <vector>
 namespace neuro {
 
 class DataLoader {
@@ -17,8 +20,11 @@ public:
         DataLoader& loader_;
         int position_;
     };
-    DataLoader(Tensor input, Tensor target, int batch_size, bool shuffle = false);
+    DataLoader(Tensor input, Tensor target, int batch_size, bool shuffle = false, int seed = 42);
     auto begin() {
+        if (shuffle_) {
+            std::shuffle(sample_indices_.begin(), sample_indices_.end(), rng_);
+        }
         return Iterator(*this, 0);
     };
     auto end() {
@@ -26,6 +32,8 @@ public:
     }
 
 private:
+    std::mt19937 rng_;
+    std::vector<int> sample_indices_;
     Tensor input_;
     Tensor target_;
     int batch_size_;
