@@ -6,6 +6,7 @@
 #include <af/blas.h>
 #include <af/data.h>
 #include <af/gfor.h>
+#include <af/seq.h>
 #include <af/util.h>
 #include <cstddef>
 #include <stdexcept>
@@ -275,6 +276,29 @@ Tensor Tensor::slice(int start, int end) const {
     return makeResult(t, {impl_}, [parent = impl_, start, end](const af::array& grad) {
         if (parent->requires_grad_)
             parent->grad_.rows(start, end - 1) += grad;
+    });
+};
+
+Tensor Tensor::indexSelect(const std::vector<int>& indices) const {
+    if (indices.size() == 0)
+        throw std::invalid_argument("Encountered empty indices vector");
+    for (int i : indices) {
+        if (i < 0)
+            throw std::out_of_range("Index must be non-negative");
+        if (i >= impl_->data_.dims(0)) {
+            throw std::out_of_range("Index out of bounds");
+        }
+    }
+    af::array idx(indices.size(), indices.data());
+    af::array t = impl_->data_(idx, af::span);
+    return makeResult(t, {impl_}, [parent = impl_, indices](const af::array& grad) {
+        if (parent->requires_grad_) {
+            int j = 0;
+            for (int i : indices) {
+                parent->grad_(i, af::span) += grad(j, af::span);
+                j++;
+            }
+        }
     });
 };
 

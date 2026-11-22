@@ -39,6 +39,7 @@ public:
     Tensor sum() const;
     Tensor transpose() const;
     Tensor slice(int start, int end) const;
+    Tensor indexSelect(const std::vector<int>& indices) const;
 
     void backward();
     void zeroGrad();
