@@ -4,6 +4,7 @@ add_executable(neuro_tests
     test_autograd.cpp
     test_broadcasting.cpp
     test_optim.cpp
+    test_dataloader.cpp
 )
 
 target_link_libraries(neuro_tests
