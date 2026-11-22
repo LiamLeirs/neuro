@@ -23,7 +23,7 @@ target_link_libraries(neuro
 )
 
 add_executable(neuro_example
-    examples/linear_regression.cpp
+    examples/xor.cpp
 )
 
 target_link_libraries(neuro_example
