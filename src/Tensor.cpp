@@ -419,4 +419,15 @@ af::array Tensor::sumToShape(const af::array& grad, const af::dim4& targetShape)
     return result;
 }
 
+// ==================== Activation Functions ====================
+
+Tensor Tensor::relu() const {
+    auto parent = impl_;
+
+    return makeResult(af::max(parent->data_, 0.0), {parent}, [parent](const af::array& grad) {
+        if (parent->requires_grad_)
+            parent->grad_ += grad * (parent->data_ > 0);
+    });
+}
+
 } // namespace neuro

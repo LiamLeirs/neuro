@@ -7,6 +7,7 @@ add_executable(neuro_tests
     test_dataloader.cpp
     test_index_select.cpp
     test_linear.cpp
+    test_relu.cpp
 )
 
 target_link_libraries(neuro_tests

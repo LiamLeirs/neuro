@@ -41,6 +41,8 @@ public:
     Tensor slice(int start, int end) const;
     Tensor indexSelect(const std::vector<int>& indices) const;
 
+    Tensor relu() const;
+
     void backward();
     void zeroGrad();
 
