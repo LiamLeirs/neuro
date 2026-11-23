@@ -11,6 +11,7 @@
 #include <af/seq.h>
 #include <af/statistics.h>
 #include <af/util.h>
+#include <cmath>
 #include <cstddef>
 #include <stdexcept>
 #include <utility>
@@ -581,6 +582,22 @@ Tensor Tensor::tanh() const {
     return makeResult(result, {parent}, [parent, result](const af::array& grad) {
         if (parent->requires_grad_)
             parent->grad_ += grad * (1 - (result * result));
+    });
+}
+
+Tensor Tensor::leakyRelu(float negativeSlope) const {
+    if (!std::isfinite(negativeSlope))
+        throw std::invalid_argument("Negative slope must be finite");
+    auto parent = impl_;
+    const af::array& x = parent->data_;
+    af::array result = af::select(x >= 0, x, negativeSlope * x);
+    return makeResult(result, {parent}, [parent, negativeSlope](const af::array& grad) {
+        if (parent->requires_grad_)
+            parent->grad_ +=
+                grad *
+                af::select(parent->data_ >= 0,
+                           af::constant(1, parent->data_.dims(), parent->data_.type()),
+                           af::constant(negativeSlope, parent->data_.dims(), parent->data_.type()));
     });
 }
 

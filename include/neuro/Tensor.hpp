@@ -52,6 +52,7 @@ public:
     Tensor relu() const;
     Tensor sigmoid() const;
     Tensor tanh() const;
+    Tensor leakyRelu(float negativeSlope = 0.01f) const;
 
     void backward();
     void zeroGrad();

@@ -1,10 +1,12 @@
 
 #include "TestUtils.hpp"
 #include "neuro/Tensor.hpp"
+#include "neuro/nn/LeakyReLU.hpp"
 
 #include <arrayfire.h>
 #include <gtest/gtest.h>
 #include <initializer_list>
+#include <limits>
 
 using namespace neuro;
 using neuro::testing::expectArrayNear;
@@ -227,4 +229,32 @@ TEST(AutogradTanh, NumericalStability) {
     result.sum().backward();
 
     expectArrayNear(x.grad(), af::dim4(2), {0.0f, 0.0f});
+}
+
+TEST(AutogradLeakyReLU, DefaultSlope) {
+    Tensor x({-2.0f, -1.0f, 0.0f, 1.0f, 2.0f});
+
+    Tensor result = x.leakyRelu();
+
+    expectArrayNear(result.data(), af::dim4(5), {-0.02f, -0.01f, 0.0f, 1.0f, 2.0f});
+}
+
+TEST(AutogradLeakyReLU, CustomSlopeBackward) {
+    Tensor x({-2.0f, -1.0f, 0.0f, 1.0f, 2.0f}, true);
+
+    Tensor result = x.leakyRelu(0.1f);
+
+    expectArrayNear(result.data(), af::dim4(5), {-0.2f, -0.1f, 0.0f, 1.0f, 2.0f});
+
+    result.sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(5), {0.1f, 0.1f, 1.0f, 1.0f, 1.0f});
+}
+
+TEST(AutogradLeakyReLU, InvalidSlope) {
+    Tensor x({-1.0f, 0.0f, 1.0f});
+
+    EXPECT_THROW(x.leakyRelu(std::numeric_limits<float>::quiet_NaN()), std::invalid_argument);
+
+    EXPECT_THROW(nn::LeakyReLU{std::numeric_limits<float>::infinity()}, std::invalid_argument);
 }
