@@ -219,3 +219,73 @@ TEST(TensorGradTracking, BothEnabled) {
 
     EXPECT_TRUE((a * b).requires_grad());
 }
+
+TEST(TensorReduction, MeanVector) {
+    Tensor x({1, 2, 3, 4});
+
+    Tensor result = x.mean();
+
+    EXPECT_NEAR(result.data().scalar<float>(), 2.5f, 1e-5f);
+}
+
+TEST(TensorReduction, MeanMatrix) {
+    Tensor x(Matrix{{1, 2, 3}, {4, 5, 6}});
+
+    Tensor result = x.mean();
+
+    EXPECT_NEAR(result.data().scalar<float>(), 3.5f, 1e-5f);
+}
+
+TEST(TensorReduction, MeanDimensionZero) {
+    Tensor x(Matrix{{1, 2, 3}, {4, 5, 6}});
+
+    Tensor result = x.mean(0);
+
+    expectArrayNear(result.data(), af::dim4(1, 3), {2.5f, 3.5f, 4.5f});
+}
+
+TEST(TensorReduction, MeanDimensionOne) {
+    Tensor x(Matrix{{1, 2, 3}, {4, 5, 6}});
+
+    Tensor result = x.mean(1);
+
+    expectArrayNear(result.data(), af::dim4(2, 1), {2.0f, 5.0f});
+}
+
+TEST(TensorReduction, MeanPreservesGradientTracking) {
+    Tensor x(Matrix{{1, 2}, {3, 4}}, true);
+
+    EXPECT_TRUE(x.mean().requires_grad());
+    EXPECT_TRUE(x.mean(0).requires_grad());
+    EXPECT_TRUE(x.mean(1).requires_grad());
+}
+
+TEST(TensorReduction, MeanWithoutGradientTracking) {
+    Tensor x(Matrix{{1, 2}, {3, 4}}, false);
+
+    EXPECT_FALSE(x.mean().requires_grad());
+    EXPECT_FALSE(x.mean(0).requires_grad());
+    EXPECT_FALSE(x.mean(1).requires_grad());
+}
+
+TEST(TensorReduction, SumInvalidDimension) {
+    Tensor x(Matrix{{1, 2}, {3, 4}});
+
+    EXPECT_THROW(x.sum(-1), std::out_of_range);
+    EXPECT_THROW(x.sum(4), std::out_of_range);
+}
+
+TEST(TensorReduction, MeanInvalidDimension) {
+    Tensor x(Matrix{{1, 2}, {3, 4}});
+
+    EXPECT_THROW(x.mean(-1), std::out_of_range);
+    EXPECT_THROW(x.mean(4), std::out_of_range);
+}
+
+TEST(TensorReduction, MeanSingletonDimension) {
+    Tensor x(Matrix{{1, 2}, {3, 4}});
+
+    Tensor result = x.mean(2);
+
+    expectArrayNear(result.data(), af::dim4(2, 2), {1, 3, 2, 4});
+}

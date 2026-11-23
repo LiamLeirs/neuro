@@ -37,6 +37,8 @@ public:
     Tensor matmul(const Tensor& other) const;
     Tensor sum(int dim) const;
     Tensor sum() const;
+    Tensor mean(int dim) const;
+    Tensor mean() const;
     Tensor transpose() const;
     Tensor slice(int start, int end) const;
     Tensor indexSelect(const std::vector<int>& indices) const;

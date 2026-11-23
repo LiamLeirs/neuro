@@ -7,6 +7,7 @@
 #include <af/data.h>
 #include <af/gfor.h>
 #include <af/seq.h>
+#include <af/statistics.h>
 #include <af/util.h>
 #include <cstddef>
 #include <stdexcept>
@@ -305,6 +306,10 @@ Tensor Tensor::indexSelect(const std::vector<int>& indices) const {
 // ==================== Reductions ====================
 
 Tensor Tensor::sum(int dim) const {
+    if (dim < 0 || dim >= 4) {
+        throw std::out_of_range("Tensor dimension must be between 0 and 3");
+    }
+
     auto parent = impl_;
 
     return makeResult(af::sum(parent->data_, dim), {parent}, [parent, dim](const af::array& grad) {
@@ -327,6 +332,34 @@ Tensor Tensor::sum() const {
         }
     });
 }
+
+Tensor Tensor::mean() const {
+    auto parent = impl_;
+
+    return makeResult(af::mean(af::flat(parent->data_)), {parent}, [parent](const af::array& grad) {
+        if (parent->requires_grad_) {
+            parent->grad_ += af::tile(grad / parent->data_.elements(), parent->data_.dims());
+        }
+    });
+};
+
+Tensor Tensor::mean(int dim) const {
+    if (dim < 0 || dim >= 4) {
+        throw std::out_of_range("Tensor dimension must be between 0 and 3");
+    }
+
+    auto parent = impl_;
+
+    return makeResult(af::mean(parent->data_, dim), {parent}, [parent, dim](const af::array& grad) {
+        if (!parent->requires_grad_)
+            return;
+
+        af::dim4 repeats(1, 1, 1, 1);
+        repeats[dim] = parent->data_.dims(dim);
+
+        parent->grad_ += af::tile(grad / parent->data_.dims(dim), repeats);
+    });
+};
 
 // ==================== Transpose ====================
 

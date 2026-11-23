@@ -200,3 +200,67 @@ TEST(AutogradMatrix, Indexing) {
 
     expectArrayNear(x.grad(), af::dim4(3), {0, 8, 0});
 }
+
+TEST(AutogradMean, BackwardVector) {
+    Tensor x({1, 2, 3, 4}, true);
+
+    x.mean().backward();
+
+    expectArrayNear(x.grad(), af::dim4(4), {0.25f, 0.25f, 0.25f, 0.25f});
+}
+
+TEST(AutogradMean, BackwardMatrix) {
+    Tensor x(Matrix{{1, 2, 3}, {4, 5, 6}}, true);
+
+    x.mean().backward();
+
+    expectArrayNear(x.grad(), af::dim4(2, 3),
+                    {1.0f / 6, 1.0f / 6, 1.0f / 6, 1.0f / 6, 1.0f / 6, 1.0f / 6});
+}
+
+TEST(AutogradMean, BackwardDimensionZero) {
+    Tensor x(Matrix{{1, 2, 3}, {4, 5, 6}}, true);
+
+    x.mean(0).sum().backward();
+
+    // Two rows: each element receives 1/2.
+    expectArrayNear(x.grad(), af::dim4(2, 3), {0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f});
+}
+
+TEST(AutogradMean, BackwardDimensionOne) {
+    Tensor x(Matrix{{1, 2, 3}, {4, 5, 6}}, true);
+
+    x.mean(1).sum().backward();
+
+    // Three columns: each element receives 1/3.
+    expectArrayNear(x.grad(), af::dim4(2, 3),
+                    {1.0f / 3, 1.0f / 3, 1.0f / 3, 1.0f / 3, 1.0f / 3, 1.0f / 3});
+}
+
+TEST(AutogradMean, ChainRule) {
+    Tensor x({1, 2, 3, 4}, true);
+
+    Tensor y = (x * 2.0).mean();
+    y.backward();
+
+    expectArrayNear(x.grad(), af::dim4(4), {0.5f, 0.5f, 0.5f, 0.5f});
+}
+
+TEST(AutogradMean, DimensionMeanChainRule) {
+    Tensor x(Matrix{{1, 2, 3}, {4, 5, 6}}, true);
+
+    Tensor y = (x * 3.0).mean(0).sum();
+    y.backward();
+
+    // Derivative: 3 / 2 = 1.5.
+    expectArrayNear(x.grad(), af::dim4(2, 3), {1.5f, 1.5f, 1.5f, 1.5f, 1.5f, 1.5f});
+}
+
+TEST(AutogradMean, GradientAccumulation) {
+    Tensor x({1, 2, 3, 4}, true);
+
+    Tensor y = x.mean() + x.sum();
+    y.backward();
+
+    expectArrayNear(x.grad(), af::dim4(4), {1.25f, 1.25f, 1.25f, 1.25f});
+}
