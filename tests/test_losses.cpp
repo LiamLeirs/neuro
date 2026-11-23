@@ -1,7 +1,7 @@
 #include "TestUtils.hpp"
 #include "neuro/Tensor.hpp"
-#include "neuro/nn/MAELoss.hpp"
-#include "neuro/nn/MSELoss.hpp"
+#include "neuro/nn/loss/MAELoss.hpp"
+#include "neuro/nn/loss/MSELoss.hpp"
 
 #include <arrayfire.h>
 #include <gtest/gtest.h>

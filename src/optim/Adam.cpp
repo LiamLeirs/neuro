@@ -1,4 +1,4 @@
-#include "../include/neuro/optim/Adam.hpp"
+#include "neuro/optim/Adam.hpp"
 
 #include "neuro/Tensor.hpp"
 #include "neuro/optim/Optimizer.hpp"

@@ -1,4 +1,4 @@
-#include "../include/neuro/optim/SGD.hpp"
+#include "neuro/optim/SGD.hpp"
 
 #include "neuro/optim/Optimizer.hpp"
 
