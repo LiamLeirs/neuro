@@ -2,12 +2,11 @@
 #include "TestUtils.hpp"
 #include "neuro/Tensor.hpp"
 #include "neuro/data/DataLoader.hpp"
+#include "neuro/data/TensorDataset.hpp"
 
 #include <algorithm>
 #include <arrayfire.h>
 #include <gtest/gtest.h>
-#include <initializer_list>
-#include <set>
 #include <stdexcept>
 #include <vector>
 
@@ -16,39 +15,60 @@ using neuro::testing::expectArrayNear;
 
 using Matrix = std::initializer_list<std::initializer_list<float>>;
 
+// ==================== Test Helpers ====================
+
+static TensorDataset makeDataset(const std::vector<std::vector<float>>& inputs,
+                                 const std::vector<std::vector<float>>& targets) {
+    std::vector<Tensor> inputTensors;
+    std::vector<Tensor> targetTensors;
+
+    inputTensors.reserve(inputs.size());
+    targetTensors.reserve(targets.size());
+
+    for (const auto& sample : inputs) {
+        af::array data(sample.size(), sample.data());
+        inputTensors.emplace_back(data);
+    }
+
+    for (const auto& sample : targets) {
+        af::array data(sample.size(), sample.data());
+        targetTensors.emplace_back(data);
+    }
+
+    return TensorDataset(inputTensors, targetTensors);
+}
+
+static std::vector<float> hostValues(const Tensor& tensor) {
+    std::vector<float> values(tensor.data().elements());
+    tensor.data().host(values.data());
+    return values;
+}
+
 // ==================== Constructor Validation ====================
 
 TEST(DataLoader, InvalidBatchSize) {
-    Tensor input(Matrix{{1, 2}, {3, 4}});
-    Tensor target(Matrix{{5}, {6}});
+    auto dataset = makeDataset({{1, 2}, {3, 4}}, {{5}, {6}});
 
-    EXPECT_THROW(DataLoader(input, target, 0), std::invalid_argument);
-    EXPECT_THROW(DataLoader(input, target, -1), std::invalid_argument);
+    EXPECT_THROW(DataLoader(dataset, 0), std::invalid_argument);
+    EXPECT_THROW(DataLoader(dataset, -1), std::invalid_argument);
 }
 
 TEST(DataLoader, MismatchedSampleCounts) {
-    Tensor input(Matrix{{1, 2}, {3, 4}});
-    Tensor target(Matrix{{5}, {6}, {7}});
-
-    EXPECT_THROW(DataLoader(input, target, 2), std::invalid_argument);
+    EXPECT_THROW(makeDataset({{1, 2}, {3, 4}}, {{5}, {6}, {7}}), std::invalid_argument);
 }
 
 // ==================== Batch Iteration ====================
 
 TEST(DataLoader, ExactBatchDivision) {
-    Tensor input(Matrix{{1, 2}, {3, 4}, {5, 6}, {7, 8}});
+    auto dataset = makeDataset({{1, 2}, {3, 4}, {5, 6}, {7, 8}}, {{10}, {20}, {30}, {40}});
 
-    Tensor target(Matrix{{10}, {20}, {30}, {40}});
-
-    DataLoader loader(input, target, 2);
+    DataLoader loader(dataset, 2);
 
     int batches = 0;
 
     for (auto [x, y] : loader) {
-        EXPECT_EQ(x.shape()[0], 2);
-        EXPECT_EQ(x.shape()[1], 2);
-        EXPECT_EQ(y.shape()[0], 2);
-        EXPECT_EQ(y.shape()[1], 1);
+        EXPECT_EQ(x.shape(), af::dim4(2, 2));
+        EXPECT_EQ(y.shape(), af::dim4(2, 1));
         ++batches;
     }
 
@@ -56,11 +76,11 @@ TEST(DataLoader, ExactBatchDivision) {
 }
 
 TEST(DataLoader, IncompleteFinalBatch) {
-    Tensor input(Matrix{{1, 2}, {3, 4}, {5, 6}, {7, 8}, {9, 10}, {11, 12}, {13, 14}, {15, 16}});
+    auto dataset =
+        makeDataset({{1, 2}, {3, 4}, {5, 6}, {7, 8}, {9, 10}, {11, 12}, {13, 14}, {15, 16}},
+                    {{10}, {20}, {30}, {40}, {50}, {60}, {70}, {80}});
 
-    Tensor target(Matrix{{10}, {20}, {30}, {40}, {50}, {60}, {70}, {80}});
-
-    DataLoader loader(input, target, 3);
+    DataLoader loader(dataset, 3);
 
     std::vector<int> batchSizes;
 
@@ -76,18 +96,15 @@ TEST(DataLoader, IncompleteFinalBatch) {
 }
 
 TEST(DataLoader, BatchLargerThanDataset) {
-    Tensor input(Matrix{{1, 2}, {3, 4}});
-    Tensor target(Matrix{{10}, {20}});
+    auto dataset = makeDataset({{1, 2}, {3, 4}}, {{10}, {20}});
 
-    DataLoader loader(input, target, 10);
+    DataLoader loader(dataset, 10);
 
     int batches = 0;
 
     for (auto [x, y] : loader) {
         expectArrayNear(x.data(), af::dim4(2, 2), {1, 3, 2, 4});
-
         expectArrayNear(y.data(), af::dim4(2, 1), {10, 20});
-
         ++batches;
     }
 
@@ -95,16 +112,15 @@ TEST(DataLoader, BatchLargerThanDataset) {
 }
 
 TEST(DataLoader, BatchSizeOne) {
-    Tensor input(Matrix{{1, 2}, {3, 4}, {5, 6}});
-    Tensor target(Matrix{{10}, {20}, {30}});
+    auto dataset = makeDataset({{1, 2}, {3, 4}, {5, 6}}, {{10}, {20}, {30}});
 
-    DataLoader loader(input, target, 1);
+    DataLoader loader(dataset, 1);
 
     int batches = 0;
 
     for (auto [x, y] : loader) {
-        EXPECT_EQ(x.shape()[0], 1);
-        EXPECT_EQ(y.shape()[0], 1);
+        EXPECT_EQ(x.shape(), af::dim4(1, 2));
+        EXPECT_EQ(y.shape(), af::dim4(1, 1));
         ++batches;
     }
 
@@ -114,11 +130,10 @@ TEST(DataLoader, BatchSizeOne) {
 // ==================== Data Integrity ====================
 
 TEST(DataLoader, CorrectBatchContents) {
-    Tensor input(Matrix{{1, 2}, {3, 4}, {5, 6}, {7, 8}, {9, 10}});
+    auto dataset =
+        makeDataset({{1, 2}, {3, 4}, {5, 6}, {7, 8}, {9, 10}}, {{10}, {20}, {30}, {40}, {50}});
 
-    Tensor target(Matrix{{10}, {20}, {30}, {40}, {50}});
-
-    DataLoader loader(input, target, 2);
+    DataLoader loader(dataset, 2);
 
     int batch = 0;
 
@@ -141,10 +156,9 @@ TEST(DataLoader, CorrectBatchContents) {
 }
 
 TEST(DataLoader, RepeatedEpochs) {
-    Tensor input(Matrix{{1, 2}, {3, 4}, {5, 6}});
-    Tensor target(Matrix{{10}, {20}, {30}});
+    auto dataset = makeDataset({{1, 2}, {3, 4}, {5, 6}}, {{10}, {20}, {30}});
 
-    DataLoader loader(input, target, 2);
+    DataLoader loader(dataset, 2);
 
     for (int epoch = 0; epoch < 3; ++epoch) {
         int samples = 0;
@@ -161,10 +175,9 @@ TEST(DataLoader, RepeatedEpochs) {
 // ==================== Iterator Behavior ====================
 
 TEST(DataLoaderIterator, BeginAndEnd) {
-    Tensor input(Matrix{{1}, {2}, {3}, {4}});
-    Tensor target(Matrix{{10}, {20}, {30}, {40}});
+    auto dataset = makeDataset({{1}, {2}, {3}, {4}}, {{10}, {20}, {30}, {40}});
 
-    DataLoader loader(input, target, 2);
+    DataLoader loader(dataset, 2);
 
     auto it = loader.begin();
     auto end = loader.end();
@@ -179,11 +192,10 @@ TEST(DataLoaderIterator, BeginAndEnd) {
 }
 
 TEST(DataLoaderIterator, DifferentLoaders) {
-    Tensor input(Matrix{{1}, {2}});
-    Tensor target(Matrix{{10}, {20}});
+    auto dataset = makeDataset({{1}, {2}}, {{10}, {20}});
 
-    DataLoader first(input, target, 1);
-    DataLoader second(input, target, 1);
+    DataLoader first(dataset, 1);
+    DataLoader second(dataset, 1);
 
     EXPECT_TRUE(first.begin() != second.begin());
     EXPECT_TRUE(first.end() != second.end());
@@ -192,18 +204,15 @@ TEST(DataLoaderIterator, DifferentLoaders) {
 // ==================== Shuffled Batching ====================
 
 TEST(DataLoaderShuffle, EverySampleAppearsExactlyOnce) {
-    Tensor input(Matrix{{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}});
-    Tensor target(Matrix{{0}, {10}, {20}, {30}, {40}, {50}, {60}, {70}});
+    auto dataset = makeDataset({{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}},
+                               {{0}, {10}, {20}, {30}, {40}, {50}, {60}, {70}});
 
-    DataLoader loader(input, target, 3, true);
+    DataLoader loader(dataset, 3, true);
 
     std::vector<int> seen;
 
     for (auto [x, y] : loader) {
-        std::vector<float> values(x.data().elements());
-        x.data().host(values.data());
-
-        for (float value : values)
+        for (float value : hostValues(x))
             seen.push_back(static_cast<int>(value));
     }
 
@@ -213,30 +222,27 @@ TEST(DataLoaderShuffle, EverySampleAppearsExactlyOnce) {
 }
 
 TEST(DataLoaderShuffle, InputTargetAlignment) {
-    Tensor input(Matrix{{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}});
-    Tensor target(Matrix{{0}, {10}, {20}, {30}, {40}, {50}, {60}, {70}});
+    auto dataset = makeDataset({{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}},
+                               {{0}, {10}, {20}, {30}, {40}, {50}, {60}, {70}});
 
-    DataLoader loader(input, target, 3, true);
+    DataLoader loader(dataset, 3, true);
 
     for (auto [x, y] : loader) {
-        std::vector<float> inputs(x.data().elements());
-        std::vector<float> targets(y.data().elements());
-
-        x.data().host(inputs.data());
-        y.data().host(targets.data());
+        auto inputs = hostValues(x);
+        auto targets = hostValues(y);
 
         ASSERT_EQ(inputs.size(), targets.size());
 
-        for (size_t i = 0; i < inputs.size(); ++i)
+        for (std::size_t i = 0; i < inputs.size(); ++i)
             EXPECT_FLOAT_EQ(targets[i], inputs[i] * 10.0f);
     }
 }
 
 TEST(DataLoaderShuffle, IncompleteFinalBatch) {
-    Tensor input(Matrix{{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}});
-    Tensor target(Matrix{{0}, {10}, {20}, {30}, {40}, {50}, {60}, {70}});
+    auto dataset = makeDataset({{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}},
+                               {{0}, {10}, {20}, {30}, {40}, {50}, {60}, {70}});
 
-    DataLoader loader(input, target, 3, true);
+    DataLoader loader(dataset, 3, true);
 
     std::vector<int> batchSizes;
 
@@ -249,19 +255,16 @@ TEST(DataLoaderShuffle, IncompleteFinalBatch) {
 }
 
 TEST(DataLoaderShuffle, RepeatedEpochsPreserveAllSamples) {
-    Tensor input(Matrix{{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}});
-    Tensor target(Matrix{{0}, {10}, {20}, {30}, {40}, {50}, {60}, {70}});
+    auto dataset = makeDataset({{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}},
+                               {{0}, {10}, {20}, {30}, {40}, {50}, {60}, {70}});
 
-    DataLoader loader(input, target, 3, true);
+    DataLoader loader(dataset, 3, true);
 
     for (int epoch = 0; epoch < 5; ++epoch) {
         std::vector<int> seen;
 
         for (auto [x, y] : loader) {
-            std::vector<float> values(x.data().elements());
-            x.data().host(values.data());
-
-            for (float value : values)
+            for (float value : hostValues(x))
                 seen.push_back(static_cast<int>(value));
         }
 
@@ -272,27 +275,23 @@ TEST(DataLoaderShuffle, RepeatedEpochsPreserveAllSamples) {
 }
 
 TEST(DataLoaderShuffle, SameSeedProducesSameOrder) {
-    Tensor input(Matrix{{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}});
-    Tensor target(Matrix{{0}, {10}, {20}, {30}, {40}, {50}, {60}, {70}});
+    auto dataset = makeDataset({{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}},
+                               {{0}, {10}, {20}, {30}, {40}, {50}, {60}, {70}});
 
-    DataLoader first(input, target, 3, true, 123);
-    DataLoader second(input, target, 3, true, 123);
+    DataLoader first(dataset, 3, true, 123);
+    DataLoader second(dataset, 3, true, 123);
 
     for (int epoch = 0; epoch < 3; ++epoch) {
         std::vector<float> firstOrder;
         std::vector<float> secondOrder;
 
         for (auto [x, y] : first) {
-            std::vector<float> values(x.data().elements());
-            x.data().host(values.data());
-
+            auto values = hostValues(x);
             firstOrder.insert(firstOrder.end(), values.begin(), values.end());
         }
 
         for (auto [x, y] : second) {
-            std::vector<float> values(x.data().elements());
-            x.data().host(values.data());
-
+            auto values = hostValues(x);
             secondOrder.insert(secondOrder.end(), values.begin(), values.end());
         }
 
@@ -301,18 +300,16 @@ TEST(DataLoaderShuffle, SameSeedProducesSameOrder) {
 }
 
 TEST(DataLoaderShuffle, ShuffleDisabledPreservesOrder) {
-    Tensor input(Matrix{{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}});
-    Tensor target(Matrix{{0}, {10}, {20}, {30}, {40}, {50}, {60}, {70}});
+    auto dataset = makeDataset({{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}},
+                               {{0}, {10}, {20}, {30}, {40}, {50}, {60}, {70}});
 
-    DataLoader loader(input, target, 3, false);
+    DataLoader loader(dataset, 3, false);
 
     for (int epoch = 0; epoch < 3; ++epoch) {
         std::vector<float> seen;
 
         for (auto [x, y] : loader) {
-            std::vector<float> values(x.data().elements());
-            x.data().host(values.data());
-
+            auto values = hostValues(x);
             seen.insert(seen.end(), values.begin(), values.end());
         }
 
@@ -321,10 +318,9 @@ TEST(DataLoaderShuffle, ShuffleDisabledPreservesOrder) {
 }
 
 TEST(DataLoaderShuffle, SingleSample) {
-    Tensor input(Matrix{{42}});
-    Tensor target(Matrix{{420}});
+    auto dataset = makeDataset({{42}}, {{420}});
 
-    DataLoader loader(input, target, 3, true);
+    DataLoader loader(dataset, 3, true);
 
     int batches = 0;
 

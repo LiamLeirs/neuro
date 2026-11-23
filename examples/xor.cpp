@@ -1,6 +1,7 @@
 
 #include "neuro/Tensor.hpp"
 #include "neuro/data/DataLoader.hpp"
+#include "neuro/data/TensorDataset.hpp"
 #include "neuro/nn/Linear.hpp"
 #include "neuro/nn/ReLU.hpp"
 #include "neuro/nn/Sequential.hpp"
@@ -20,7 +21,10 @@ int main() {
     Tensor input(inputValues);
     Tensor target(targetValues);
 
-    DataLoader loader(input, target, 4, true);
+    TensorDataset dataset({input[0], input[1], input[2], input[3]},
+                          {target[0], target[1], target[2], target[3]});
+
+    DataLoader loader(dataset, 4, true);
 
     nn::Sequential seq(nn::Linear(2, 4), nn::ReLU(), nn::Linear(4, 1));
 

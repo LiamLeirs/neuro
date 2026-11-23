@@ -8,11 +8,13 @@
 #include <af/defines.h>
 #include <af/dim4.hpp>
 #include <af/gfor.h>
+#include <af/index.h>
 #include <af/seq.h>
 #include <af/statistics.h>
 #include <af/util.h>
 #include <cmath>
 #include <cstddef>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -93,8 +95,7 @@ bool Tensor::requires_grad() const {
 
 // ==================== Autograd Setup ====================
 
-Tensor Tensor::makeResult(const af::array& data,
-                          std::initializer_list<std::shared_ptr<TensorImpl>> parents,
+Tensor Tensor::makeResult(const af::array& data, std::vector<std::shared_ptr<TensorImpl>> parents,
                           BackwardRule backward) {
     bool requires_grad = false;
 
@@ -107,7 +108,7 @@ Tensor Tensor::makeResult(const af::array& data,
     if (!requires_grad)
         return result;
 
-    result.impl_->dependencies.assign(parents.begin(), parents.end());
+    result.impl_->dependencies = std::move(parents);
 
     std::weak_ptr<TensorImpl> output = result.impl_;
 
@@ -333,6 +334,87 @@ Tensor Tensor::indexSelect(const std::vector<int>& indices) const {
     });
 };
 
+namespace {
+
+af::array insert_dim(const af::array& in, int dim) {
+    if (in.isempty())
+        throw std::invalid_argument("Cannot insert dimension into an empty array");
+
+    const af::dim4 old_dims = in.dims();
+
+    // ArrayFire supports a maximum of four dimensions.
+    if (old_dims[3] != 1)
+        throw std::invalid_argument("Cannot insert dimension into a 4D tensor");
+
+    // Determine the logical rank, ignoring trailing singleton dimensions.
+    int rank = 1;
+    for (int i = 2; i >= 0; --i) {
+        if (old_dims[i] != 1) {
+            rank = i + 1;
+            break;
+        }
+    }
+
+    if (dim < 0 || dim > rank)
+        throw std::out_of_range("Invalid insertion dimension");
+
+    af::dim4 new_dims(1, 1, 1, 1);
+
+    for (int i = 0; i < dim; ++i)
+        new_dims[i] = old_dims[i];
+
+    for (int i = dim; i < rank; ++i)
+        new_dims[i + 1] = old_dims[i];
+
+    return af::moddims(in, new_dims);
+}
+
+} // namespace
+
+Tensor Tensor::stack(const std::vector<Tensor>& tensors, int dim) {
+    if (tensors.empty())
+        throw std::invalid_argument("Cannot stack an empty collection");
+
+    const af::dim4 expected_shape = tensors.front().shape();
+
+    std::vector<std::shared_ptr<TensorImpl>> parents;
+    parents.reserve(tensors.size());
+
+    af::array output;
+
+    for (const auto& tensor : tensors) {
+        if (tensor.shape() != expected_shape)
+            throw std::invalid_argument("All tensors must have the same shape");
+
+        af::array sample = insert_dim(tensor.data(), dim);
+
+        if (parents.empty())
+            output = std::move(sample);
+        else
+            output = af::join(dim, output, sample);
+
+        parents.push_back(tensor.impl_);
+    }
+
+    return makeResult(output, parents, [parents, dim](const af::array& grad) {
+        for (std::size_t i = 0; i < parents.size(); ++i) {
+            const auto& parent = parents[i];
+
+            if (!parent->requires_grad_)
+                continue;
+
+            af::index indices[] = {af::span, af::span, af::span, af::span};
+
+            indices[dim] = static_cast<int>(i);
+
+            af::array grad_slice = grad(indices[0], indices[1], indices[2], indices[3]);
+
+            grad_slice = af::moddims(grad_slice, parent->data_.dims());
+
+            parent->grad_ += grad_slice;
+        }
+    });
+}
 // ==================== Reductions ====================
 
 Tensor Tensor::sum(int dim) const {

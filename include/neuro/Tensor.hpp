@@ -24,6 +24,8 @@ public:
     af::dim4 shape() const;
     bool requires_grad() const;
 
+    static Tensor stack(const std::vector<Tensor>& tensors, int dim = 0);
+
     Tensor operator+(const Tensor& other) const;
     Tensor operator+(double scalar) const;
     Tensor operator-(const Tensor& other) const;
@@ -66,7 +68,7 @@ private:
 
     // Registers dependencies and the operation's backward rule.
     static Tensor makeResult(const af::array& data,
-                             std::initializer_list<std::shared_ptr<TensorImpl>> parents,
+                             std::vector<std::shared_ptr<TensorImpl>> parents,
                              BackwardRule backward);
 
     std::vector<std::shared_ptr<TensorImpl>> topologicalSort() const;

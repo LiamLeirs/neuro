@@ -12,6 +12,7 @@ add_executable(neuro_tests
     test_adam.cpp
     test_losses.cpp
     test_datasets.cpp
+    test_stacking.cpp
 )
 
 target_link_libraries(neuro_tests
