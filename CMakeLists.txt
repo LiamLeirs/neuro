@@ -16,6 +16,7 @@ add_library(neuro
     src/optim/Adam.cpp
     src/nn/loss/MSELoss.cpp
     src/nn/loss/MAELoss.cpp
+    src/nn/loss/CrossEntropyLoss.cpp
 )
 
 target_include_directories(neuro
