@@ -7,7 +7,7 @@ add_executable(neuro_tests
     test_dataloader.cpp
     test_index_select.cpp
     test_linear.cpp
-    test_relu.cpp
+    test_activation.cpp
     test_sequential.cpp
     test_adam.cpp
     test_losses.cpp

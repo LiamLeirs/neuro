@@ -559,4 +559,18 @@ Tensor Tensor::relu() const {
     });
 }
 
+Tensor Tensor::sigmoid() const {
+    auto parent = impl_;
+    const af::array& x = parent->data_;
+
+    af::array expNegAbs = af::exp(-af::abs(x));
+
+    af::array result = af::select(x >= 0, 1 / (1 + expNegAbs), expNegAbs / (1 + expNegAbs));
+
+    return makeResult(result, {parent}, [parent, result](const af::array& grad) {
+        if (parent->requires_grad_)
+            parent->grad_ += grad * result * (1 - result);
+    });
+}
+
 } // namespace neuro

@@ -50,6 +50,7 @@ public:
     Tensor indexSelect(const std::vector<int>& indices) const;
 
     Tensor relu() const;
+    Tensor sigmoid() const;
 
     void backward();
     void zeroGrad();

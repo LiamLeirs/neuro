@@ -172,3 +172,31 @@ TEST(ReLU, PreservesGradientTracking) {
 
     EXPECT_TRUE(y.requires_grad());
 }
+
+TEST(AutogradSigmoid, Forward) {
+    Tensor x({-1.0f, 0.0f, 1.0f});
+
+    Tensor result = x.sigmoid();
+
+    expectArrayNear(result.data(), af::dim4(3), {0.268941f, 0.5f, 0.731059f});
+}
+
+TEST(AutogradSigmoid, Backward) {
+    Tensor x({-1.0f, 0.0f, 1.0f}, true);
+
+    x.sigmoid().sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(3), {0.196612f, 0.25f, 0.196612f});
+}
+
+TEST(AutogradSigmoid, NumericalStability) {
+    Tensor x({-1000.0f, 1000.0f}, true);
+
+    Tensor result = x.sigmoid();
+
+    expectArrayNear(result.data(), af::dim4(2), {0.0f, 1.0f});
+
+    result.sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(2), {0.0f, 0.0f});
+}
