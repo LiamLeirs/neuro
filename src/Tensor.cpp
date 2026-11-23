@@ -601,4 +601,13 @@ Tensor Tensor::leakyRelu(float negativeSlope) const {
     });
 }
 
+Tensor Tensor::softmax(int dim) const {
+    if (dim < 0 || dim > 3)
+        throw std::invalid_argument("Dim out of range");
+    Tensor shifted = *this - max(dim);
+    Tensor exponentials = shifted.exp();
+    Tensor normalizer = exponentials.sum(dim);
+    return exponentials / normalizer;
+};
+
 } // namespace neuro

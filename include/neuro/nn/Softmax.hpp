@@ -1,0 +1,22 @@
+#pragma once
+#include "neuro/Tensor.hpp"
+#include "neuro/nn/Module.hpp"
+
+#include <stdexcept>
+namespace neuro::nn {
+
+class Softmax : public Module {
+public:
+    Softmax(int dim) : dim_(dim) {
+        if (dim < 0 || dim > 3)
+            throw std::invalid_argument("Dim out of range");
+    }
+    Tensor forward(const Tensor& input) const override {
+        return input.softmax(dim_);
+    }
+
+private:
+    int dim_;
+};
+
+} // namespace neuro::nn

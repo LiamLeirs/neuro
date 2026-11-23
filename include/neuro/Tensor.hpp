@@ -53,6 +53,7 @@ public:
     Tensor sigmoid() const;
     Tensor tanh() const;
     Tensor leakyRelu(float negativeSlope = 0.01f) const;
+    Tensor softmax(int dim) const;
 
     void backward();
     void zeroGrad();

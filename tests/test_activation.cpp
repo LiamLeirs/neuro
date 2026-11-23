@@ -258,3 +258,39 @@ TEST(AutogradLeakyReLU, InvalidSlope) {
 
     EXPECT_THROW(nn::LeakyReLU{std::numeric_limits<float>::infinity()}, std::invalid_argument);
 }
+
+#include "TestUtils.hpp"
+#include "neuro/Tensor.hpp"
+#include "neuro/nn/Softmax.hpp"
+
+#include <gtest/gtest.h>
+
+using namespace neuro;
+
+TEST(SoftmaxTest, Forward) {
+    Tensor x(Matrix{{1, 2, 3}, {4, 5, 6}});
+
+    nn::Softmax softmax(1);
+    Tensor result = softmax.forward(x);
+
+    expectArrayNear(result.data(), af::dim4(2, 3),
+                    {0.0900306f, 0.0900306f, 0.2447285f, 0.2447285f, 0.6652409f, 0.6652409f});
+}
+
+TEST(SoftmaxTest, Backward) {
+    Tensor x({1.0f, 2.0f, 3.0f}, true);
+    Tensor weights({1.0f, 2.0f, 3.0f});
+
+    Tensor loss = (x.softmax(0) * weights).sum();
+    loss.backward();
+
+    expectArrayNear(x.grad(), af::dim4(3), {-0.1418171f, -0.1407704f, 0.2825875f});
+}
+
+TEST(SoftmaxTest, NumericalStability) {
+    Tensor x({1000.0f, 1001.0f, 1002.0f});
+
+    Tensor result = x.softmax(0);
+
+    expectArrayNear(result.data(), af::dim4(3), {0.0900306f, 0.2447285f, 0.6652409f});
+}
