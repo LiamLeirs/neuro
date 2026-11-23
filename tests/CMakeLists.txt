@@ -8,6 +8,7 @@ add_executable(neuro_tests
     test_index_select.cpp
     test_linear.cpp
     test_relu.cpp
+    test_sequential.cpp
 )
 
 target_link_libraries(neuro_tests

@@ -12,6 +12,7 @@ add_library(neuro
     src/optim/SGD.cpp
     src/data/DataLoader.cpp
     src/nn/Linear.cpp
+    src/nn/Sequential.cpp
 )
 
 target_include_directories(neuro

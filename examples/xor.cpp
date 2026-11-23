@@ -2,6 +2,8 @@
 #include "neuro/Tensor.hpp"
 #include "neuro/data/DataLoader.hpp"
 #include "neuro/nn/Linear.hpp"
+#include "neuro/nn/ReLU.hpp"
+#include "neuro/nn/Sequential.hpp"
 #include "neuro/optim/SGD.hpp"
 
 #include <arrayfire.h>
@@ -20,10 +22,9 @@ int main() {
 
     DataLoader loader(input, target, 4, true);
 
-    nn::Linear fc1(2, 4);
-    nn::Linear fc2(4, 1);
+    nn::Sequential seq(nn::Linear(2, 4), nn::ReLU(), nn::Linear(4, 1));
 
-    SGD sgd({fc1.bias(), fc1.weight(), fc2.bias(), fc2.weight()}, 0.01);
+    SGD sgd(seq.parameters(), 0.01);
 
     const int NUM_EPOCHS = 5000;
 
@@ -33,8 +34,7 @@ int main() {
         for (auto [x, y] : loader) {
             sgd.zeroGrad();
 
-            Tensor hidden = fc1(x).relu();
-            Tensor output = fc2(hidden);
+            Tensor output = seq(x);
 
             Tensor diff = output - y;
             Tensor loss = (diff * diff).sum() / x.shape()[0];
@@ -53,12 +53,8 @@ int main() {
         }
     }
 
-    std::cout << "\nHidden layer activations:\n";
-    af::print("hidden", fc1(input).relu().data());
-    af::print("preactivations", fc1(input).data());
-
     // Evaluate the trained model on the full dataset.
-    Tensor predictions = fc2(fc1(input).relu());
+    Tensor predictions = seq(input);
 
     std::cout << "\nFinal XOR predictions:\n";
 

@@ -41,8 +41,8 @@ Tensor Linear::forward(const Tensor& input) const {
     return input.matmul(weight_) + bias_;
 };
 
-Tensor Linear::operator()(const Tensor& input) const {
-    return forward(input);
-};
+std::vector<Tensor> Linear::parameters() const {
+    return {weight_, bias_};
+}
 
 } // namespace neuro::nn
