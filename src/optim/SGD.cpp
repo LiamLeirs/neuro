@@ -1,24 +1,16 @@
 #include "../include/neuro/optim/SGD.hpp"
 
+#include "neuro/optim/Optimizer.hpp"
+
 namespace neuro {
 
-SGD::SGD(std::vector<Tensor> parameters, double lr) : parameters_(std::move(parameters)), lr_(lr) {
-    if (lr <= 0)
-        throw std::invalid_argument("Learning rate must be greater than zero");
-};
+SGD::SGD(std::vector<Tensor> parameters, double lr) : Optimizer(std::move(parameters), lr) {};
 
 void SGD::step() {
     for (auto& param : parameters_) {
-        if (!param.impl_->requires_grad_)
+        if (!requiresGrad(param))
             continue;
-        param.impl_->data_ -= lr_ * param.impl_->grad_;
+        data(param) -= lr_ * grad(param);
     }
 };
-
-void SGD::zeroGrad() {
-    for (auto& param : parameters_) {
-        param.zeroGrad();
-    }
-};
-
 } // namespace neuro

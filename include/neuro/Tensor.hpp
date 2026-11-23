@@ -64,7 +64,7 @@ private:
 
     static af::array sumToShape(const af::array& grad, const af::dim4& targetShape);
 
-    friend class SGD;
+    friend class Optimizer;
 };
 
 std::ostream& operator<<(std::ostream& out, const Tensor& t);

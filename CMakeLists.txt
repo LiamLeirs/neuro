@@ -13,6 +13,7 @@ add_library(neuro
     src/data/DataLoader.cpp
     src/nn/Linear.cpp
     src/nn/Sequential.cpp
+    src/optim/Adam.cpp
 )
 
 target_include_directories(neuro
