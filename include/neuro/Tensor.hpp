@@ -41,6 +41,7 @@ public:
     Tensor mean() const;
     Tensor max(int dim) const;
     Tensor max() const;
+    Tensor gather(const std::vector<int>& indices) const;
     Tensor abs() const;
     Tensor exp() const;
     Tensor log() const;

@@ -5,6 +5,8 @@
 #include <af/array.h>
 #include <af/blas.h>
 #include <af/data.h>
+#include <af/defines.h>
+#include <af/dim4.hpp>
 #include <af/gfor.h>
 #include <af/seq.h>
 #include <af/statistics.h>
@@ -423,6 +425,37 @@ Tensor Tensor::max() const {
         parent->grad_ += mask.as(parent->data_.type()) * (grad.scalar<float>() / counts);
     });
 }
+
+Tensor Tensor::gather(const std::vector<int>& indices) const {
+    if (impl_->data_.dims(2) != 1 || impl_->data_.dims(3) != 1) {
+        throw std::invalid_argument("Tensor must be 2D");
+    }
+    if (indices.size() != impl_->data_.dims(0)) {
+        throw std::invalid_argument("Index dimensions don't match");
+    }
+    auto parent = impl_;
+    std::vector<unsigned> linearIndices;
+    linearIndices.reserve(indices.size());
+
+    for (size_t i = 0; i < indices.size(); i++) {
+        if (indices[i] < 0 || indices[i] >= parent->data_.dims(1))
+            throw std::invalid_argument("Index out of range");
+
+        linearIndices.push_back(i + indices[i] * parent->data_.dims(0));
+    }
+
+    af::array idx(linearIndices.size(), linearIndices.data());
+    af::array flat = af::flat(parent->data_);
+    af::array result = flat(idx);
+
+    return makeResult(result, {parent}, [parent, idx](const af::array& grad) {
+        if (!parent->requires_grad_)
+            return;
+        af::array scatter = af::flat(af::constant(0, parent->data_.dims(), parent->data_.type()));
+        scatter(idx) = grad;
+        parent->grad_ += af::moddims(scatter, parent->data_.dims());
+    });
+};
 
 // ==================== Transpose ====================
 

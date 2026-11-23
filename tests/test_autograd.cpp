@@ -349,3 +349,45 @@ TEST(AutogradMax, NonUniformUpstreamGradients) {
 
     expectArrayNear(x.grad(), af::dim4(2, 3), {0.0f, 0.0f, 2.0f, 0.0f, 0.0f, 3.0f});
 }
+
+TEST(AutogradGather, Forward) {
+    Tensor x(Matrix{{1.0f, 2.0f, 3.0f}, {4.0f, 5.0f, 6.0f}, {7.0f, 8.0f, 9.0f}});
+
+    Tensor result = x.gather({2, 0, 1});
+
+    expectArrayNear(result.data(), af::dim4(3), {3.0f, 4.0f, 8.0f});
+}
+
+TEST(AutogradGather, Backward) {
+    Tensor x(Matrix{{1.0f, 2.0f, 3.0f}, {4.0f, 5.0f, 6.0f}, {7.0f, 8.0f, 9.0f}}, true);
+
+    Tensor selected = x.gather({2, 0, 1});
+    Tensor weights({10.0f, 20.0f, 30.0f});
+
+    (selected * weights).sum().backward();
+
+    // Column-major ordering
+    expectArrayNear(x.grad(), af::dim4(3, 3),
+                    {0.0f, 20.0f, 0.0f, 0.0f, 0.0f, 30.0f, 10.0f, 0.0f, 0.0f});
+}
+
+TEST(AutogradGather, InvalidIndices) {
+    Tensor x(Matrix{{1.0f, 2.0f, 3.0f}, {4.0f, 5.0f, 6.0f}});
+
+    EXPECT_THROW(x.gather({0, 3}), std::invalid_argument);
+    EXPECT_THROW(x.gather({-1, 1}), std::invalid_argument);
+}
+
+TEST(AutogradGather, InvalidShape) {
+    Tensor x(Matrix{{1.0f, 2.0f, 3.0f}, {4.0f, 5.0f, 6.0f}});
+
+    // One index per row is required
+    EXPECT_THROW(x.gather({0}), std::invalid_argument);
+    EXPECT_THROW(x.gather({0, 1, 2}), std::invalid_argument);
+
+    // Only 2D tensors are supported
+    af::array data3D = af::constant(1.0f, 2, 3, 2);
+    Tensor x3D(data3D);
+
+    EXPECT_THROW(x3D.gather({0, 1}), std::invalid_argument);
+}
