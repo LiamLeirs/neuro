@@ -15,6 +15,7 @@ add_library(neuro
     src/nn/Sequential.cpp
     src/optim/Adam.cpp
     src/nn/MSELoss.cpp
+    src/nn/MAELoss.cpp
 )
 
 target_include_directories(neuro
