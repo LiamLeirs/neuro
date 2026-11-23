@@ -17,6 +17,7 @@ add_library(neuro
     src/nn/loss/MSELoss.cpp
     src/nn/loss/MAELoss.cpp
     src/nn/loss/CrossEntropyLoss.cpp
+    src/data/TensorDataset.cpp
 )
 
 target_include_directories(neuro
