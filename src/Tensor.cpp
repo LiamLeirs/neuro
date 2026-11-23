@@ -573,4 +573,15 @@ Tensor Tensor::sigmoid() const {
     });
 }
 
+Tensor Tensor::tanh() const {
+    auto parent = impl_;
+    const af::array& x = parent->data_;
+    af::array result = af::tanh(x);
+
+    return makeResult(result, {parent}, [parent, result](const af::array& grad) {
+        if (parent->requires_grad_)
+            parent->grad_ += grad * (1 - (result * result));
+    });
+}
+
 } // namespace neuro

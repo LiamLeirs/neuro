@@ -51,6 +51,7 @@ public:
 
     Tensor relu() const;
     Tensor sigmoid() const;
+    Tensor tanh() const;
 
     void backward();
     void zeroGrad();
