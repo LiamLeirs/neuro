@@ -10,6 +10,7 @@ add_executable(neuro_tests
     test_relu.cpp
     test_sequential.cpp
     test_adam.cpp
+    test_losses.cpp
 )
 
 target_link_libraries(neuro_tests
