@@ -296,3 +296,56 @@ TEST(AutogradLog, Backward) {
 
     expectArrayNear(x.grad(), af::dim4(3), {1.0f, 0.5f, 0.25f});
 }
+
+TEST(AutogradMax, GlobalForwardBackward) {
+    Tensor x({1.0f, 5.0f, 3.0f, 2.0f}, true);
+
+    Tensor result = x.max();
+
+    EXPECT_NEAR(result.data().scalar<float>(), 5.0f, 1e-5f);
+
+    result.backward();
+
+    expectArrayNear(x.grad(), af::dim4(4), {0.0f, 1.0f, 0.0f, 0.0f});
+}
+
+TEST(AutogradMax, GlobalTiedMaxima) {
+    Tensor x({2.0f, 5.0f, 5.0f, 1.0f}, true);
+
+    x.max().backward();
+
+    expectArrayNear(x.grad(), af::dim4(4), {0.0f, 0.5f, 0.5f, 0.0f});
+}
+
+TEST(AutogradMax, DimensionForwardBackward) {
+    Tensor x(Matrix{{1.0f, 5.0f, 3.0f}, {4.0f, 2.0f, 6.0f}}, true);
+
+    Tensor result = x.max(1);
+
+    expectArrayNear(result.data(), af::dim4(2, 1), {5.0f, 6.0f});
+
+    result.sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(2, 3), {0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f});
+}
+
+TEST(AutogradMax, DimensionTiedMaxima) {
+    Tensor x(Matrix{{2.0f, 5.0f, 5.0f}, {4.0f, 4.0f, 1.0f}}, true);
+
+    x.max(1).sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(2, 3), {0.0f, 0.5f, 0.5f, 0.5f, 0.5f, 0.0f});
+}
+
+TEST(AutogradMax, NonUniformUpstreamGradients) {
+    Tensor x(Matrix{{1.0f, 5.0f, 3.0f}, {4.0f, 2.0f, 6.0f}}, true);
+
+    Tensor result = x.max(1);
+
+    // Different gradient magnitude for each row.
+    Tensor weights({2.0f, 3.0f});
+
+    (result * weights).sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(2, 3), {0.0f, 0.0f, 2.0f, 0.0f, 0.0f, 3.0f});
+}

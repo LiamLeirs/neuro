@@ -388,6 +388,42 @@ Tensor Tensor::mean(int dim) const {
     });
 };
 
+Tensor Tensor::max(int dim) const {
+    if (dim < 0 || dim >= 4) {
+        throw std::out_of_range("Tensor dimension must be between 0 and 3");
+    }
+
+    auto parent = impl_;
+    af::array result = af::max(parent->data_, dim);
+    return makeResult(result, {parent}, [parent, dim, result](const af::array& grad) {
+        if (!parent->requires_grad_)
+            return;
+
+        af::dim4 repeats(1, 1, 1, 1);
+        repeats[dim] = parent->data_.dims(dim);
+
+        af::array mask = parent->data_ == af::tile(result, repeats);
+        af::array counts = af::sum(mask.as(f32), dim);
+
+        parent->grad_ += mask.as(parent->data_.type()) * af::tile(grad / counts, repeats);
+    });
+};
+
+Tensor Tensor::max() const {
+    auto parent = impl_;
+    af::array result = af::max(af::flat(parent->data_));
+
+    return makeResult(result, {parent}, [parent, result](const af::array& grad) {
+        if (!parent->requires_grad_)
+            return;
+
+        af::array mask = parent->data_ == result.scalar<float>();
+        float counts = af::sum<float>(mask.as(f32));
+
+        parent->grad_ += mask.as(parent->data_.type()) * (grad.scalar<float>() / counts);
+    });
+}
+
 // ==================== Transpose ====================
 
 Tensor Tensor::transpose() const {

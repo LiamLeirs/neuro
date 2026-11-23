@@ -39,6 +39,8 @@ public:
     Tensor sum() const;
     Tensor mean(int dim) const;
     Tensor mean() const;
+    Tensor max(int dim) const;
+    Tensor max() const;
     Tensor abs() const;
     Tensor exp() const;
     Tensor log() const;
