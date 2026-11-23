@@ -294,3 +294,44 @@ TEST(SoftmaxTest, NumericalStability) {
 
     expectArrayNear(result.data(), af::dim4(3), {0.0900306f, 0.2447285f, 0.6652409f});
 }
+
+#include "TestUtils.hpp"
+#include "neuro/Tensor.hpp"
+#include "neuro/nn/LogSoftmax.hpp"
+
+#include <cmath>
+#include <gtest/gtest.h>
+
+using namespace neuro;
+
+TEST(LogSoftmaxTest, Forward) {
+    Tensor x(Matrix{{1, 2, 3}, {4, 5, 6}});
+
+    nn::LogSoftmax logSoftmax(1);
+    Tensor result = logSoftmax.forward(x);
+
+    expectArrayNear(result.data(), af::dim4(2, 3),
+                    {-2.407606f, -2.407606f, -1.407606f, -1.407606f, -0.407606f, -0.407606f});
+}
+
+TEST(LogSoftmaxTest, Backward) {
+    Tensor x({1.0f, 2.0f, 3.0f}, true);
+    Tensor weights({1.0f, 2.0f, 3.0f});
+
+    Tensor loss = (x.logSoftmax(0) * weights).sum();
+    loss.backward();
+
+    // dL/dx_i = w_i - softmax(x_i) * sum(w)
+    expectArrayNear(x.grad(), af::dim4(3), {0.4598164f, 0.5316290f, -0.9914454f});
+}
+
+TEST(LogSoftmaxTest, NumericalStability) {
+    Tensor x({0.0f, -1000.0f, -2000.0f});
+
+    Tensor result = x.logSoftmax(0);
+
+    expectArrayNear(result.data(), af::dim4(3), {0.0f, -1000.0f, -2000.0f});
+
+    af::array finite = !af::isInf(result.data()) && !af::isNaN(result.data());
+    EXPECT_TRUE(af::allTrue<bool>(finite));
+}

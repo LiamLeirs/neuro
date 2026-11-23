@@ -54,6 +54,7 @@ public:
     Tensor tanh() const;
     Tensor leakyRelu(float negativeSlope = 0.01f) const;
     Tensor softmax(int dim) const;
+    Tensor logSoftmax(int dim) const;
 
     void backward();
     void zeroGrad();

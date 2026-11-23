@@ -610,4 +610,13 @@ Tensor Tensor::softmax(int dim) const {
     return exponentials / normalizer;
 };
 
+Tensor Tensor::logSoftmax(int dim) const {
+    if (dim < 0 || dim > 3)
+        throw std::invalid_argument("Dim out of range");
+    Tensor shifted = *this - max(dim);
+    Tensor exponentials = shifted.exp();
+    Tensor normalizer = exponentials.sum(dim);
+    return shifted - normalizer.log();
+};
+
 } // namespace neuro
