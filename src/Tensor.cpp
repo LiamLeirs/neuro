@@ -195,6 +195,23 @@ Tensor Tensor::abs() const {
     });
 };
 
+Tensor Tensor::exp() const {
+    auto parent = impl_;
+    af::array result = af::exp(parent->data_);
+    return makeResult(result, {parent}, [parent, result](const af::array& grad) {
+        if (parent->requires_grad_)
+            parent->grad_ += grad * result;
+    });
+};
+
+Tensor Tensor::log() const {
+    auto parent = impl_;
+    return makeResult(af::log(parent->data_), {parent}, [parent](const af::array& grad) {
+        if (parent->requires_grad_)
+            parent->grad_ += grad / parent->data_;
+    });
+};
+
 // ==================== Scalar Arithmetic ====================
 
 Tensor Tensor::operator+(double scalar) const {

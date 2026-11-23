@@ -40,6 +40,8 @@ public:
     Tensor mean(int dim) const;
     Tensor mean() const;
     Tensor abs() const;
+    Tensor exp() const;
+    Tensor log() const;
     Tensor transpose() const;
     Tensor slice(int start, int end) const;
     Tensor indexSelect(const std::vector<int>& indices) const;

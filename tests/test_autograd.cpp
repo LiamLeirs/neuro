@@ -264,3 +264,35 @@ TEST(AutogradMean, GradientAccumulation) {
 
     expectArrayNear(x.grad(), af::dim4(4), {1.25f, 1.25f, 1.25f, 1.25f});
 }
+
+TEST(AutogradExp, Forward) {
+    Tensor x({0.0f, 1.0f, 2.0f});
+
+    Tensor result = x.exp();
+
+    expectArrayNear(result.data(), af::dim4(3), {1.0f, std::exp(1.0f), std::exp(2.0f)});
+}
+
+TEST(AutogradExp, Backward) {
+    Tensor x({0.0f, 1.0f, 2.0f}, true);
+
+    x.exp().sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(3), {1.0f, std::exp(1.0f), std::exp(2.0f)});
+}
+
+TEST(AutogradLog, Forward) {
+    Tensor x({1.0f, 2.0f, 4.0f});
+
+    Tensor result = x.log();
+
+    expectArrayNear(result.data(), af::dim4(3), {0.0f, std::log(2.0f), std::log(4.0f)});
+}
+
+TEST(AutogradLog, Backward) {
+    Tensor x({1.0f, 2.0f, 4.0f}, true);
+
+    x.log().sum().backward();
+
+    expectArrayNear(x.grad(), af::dim4(3), {1.0f, 0.5f, 0.25f});
+}
