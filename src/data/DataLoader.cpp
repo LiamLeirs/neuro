@@ -48,7 +48,7 @@ std::pair<Tensor, Tensor> DataLoader::Iterator::operator*() const {
 }
 
 DataLoader::Iterator& DataLoader::Iterator::operator++() {
-    int end = std::min(position_ + loader_.batch_size_, loader_.dataset_.size());
+    std::size_t end = std::min(position_ + loader_.batch_size_, loader_.dataset_.size());
     position_ = end;
     return *this;
 };

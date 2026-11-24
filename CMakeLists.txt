@@ -18,6 +18,7 @@ add_library(neuro
     src/nn/loss/MAELoss.cpp
     src/nn/loss/CrossEntropyLoss.cpp
     src/data/TensorDataset.cpp
+    src/data/MNISTDataset.cpp
 )
 
 target_include_directories(neuro
@@ -29,7 +30,7 @@ target_link_libraries(neuro
 )
 
 add_executable(neuro_example
-    examples/xor.cpp
+    examples/main.cpp
 )
 
 target_link_libraries(neuro_example
