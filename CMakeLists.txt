@@ -1,9 +1,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-project(neuro LANGUAGES CXX)
-
-set(CMAKE_CXX_STANDARD 20)
+project(neuro LANGUAGES CXX VERSION 0.1.0)
 
 find_package(ArrayFire REQUIRED)
 
@@ -24,6 +22,14 @@ add_library(neuro
     src/Trainer.cpp
 )
 
+add_library(Neuro::Neuro ALIAS neuro)
+
+target_compile_features(neuro PUBLIC cxx_std_20)
+
+set_target_properties(neuro PROPERTIES
+    CXX_EXTENSIONS OFF
+)
+
 target_include_directories(neuro
     PUBLIC include
 )
@@ -37,7 +43,7 @@ add_executable(neuro_example
 )
 
 target_link_libraries(neuro_example
-    PRIVATE neuro
+    PRIVATE Neuro::Neuro
 )
 
 include(CTest)

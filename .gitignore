@@ -6,3 +6,9 @@
 *.a
 /data/
 /checkpoints/
+
+# Build artifacts
+/compile_commands.json
+
+# Language server cache
+/.cache/
