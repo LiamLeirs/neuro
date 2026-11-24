@@ -1,6 +1,9 @@
 
 #include "neuro/data/MNISTDataset.hpp"
 
+#include "neuro/Tensor.hpp"
+
+#include <af/array.h>
 #include <arrayfire.h>
 #include <cstdint>
 #include <fstream>
@@ -55,6 +58,37 @@ MNISTDataset::MNISTDataset(const std::string& image_filename, const std::string&
 
 std::size_t MNISTDataset::size() const {
     return labels_.size();
+}
+
+std::pair<Tensor, Tensor> MNISTDataset::getBatch(std::span<const std::size_t> indices) const {
+    if (indices.empty())
+        throw std::invalid_argument("Batch cannot be empty");
+
+    const std::size_t batch_size = indices.size();
+    constexpr std::size_t image_size = 28 * 28;
+
+    std::vector<std::uint8_t> image_buffer(batch_size * image_size);
+    std::vector<std::uint8_t> label_buffer(batch_size);
+
+    for (std::size_t b = 0; b < batch_size; ++b) {
+        const std::size_t idx = indices[b];
+
+        if (idx >= size())
+            throw std::out_of_range("MNIST sample index out of range");
+
+        for (std::size_t p = 0; p < image_size; ++p) {
+            image_buffer[b + p * batch_size] = images_[idx * image_size + p];
+        }
+
+        label_buffer[b] = labels_[idx];
+    }
+
+    af::array batch_images(batch_size, image_size, image_buffer.data());
+    af::array batch_labels(batch_size, label_buffer.data());
+
+    batch_images = batch_images.as(f32) / 255.0f;
+
+    return {Tensor(batch_images), Tensor(batch_labels)};
 }
 
 Dataset::Sample MNISTDataset::get(std::size_t index) const {

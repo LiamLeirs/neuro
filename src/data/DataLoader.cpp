@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <numeric>
 #include <random>
+#include <span>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -28,24 +29,11 @@ DataLoader::Iterator::Iterator(DataLoader& loader, std::size_t position)
 std::pair<Tensor, Tensor> DataLoader::Iterator::operator*() const {
     const std::size_t end = std::min(position_ + static_cast<std::size_t>(loader_.batch_size_),
                                      loader_.dataset_.size());
+    std::span<std::size_t> batch_indices =
+        std::span{loader_.sample_indices_}.subspan(position_, end - position_);
 
-    std::vector<Tensor> inputs;
-    std::vector<Tensor> targets;
-
-    inputs.reserve(end - position_);
-    targets.reserve(end - position_);
-
-    for (std::size_t i = position_; i < end; ++i) {
-        const std::size_t sample_index = loader_.sample_indices_[i];
-
-        Dataset::Sample sample = loader_.dataset_.get(sample_index);
-
-        inputs.push_back(std::move(sample.input));
-        targets.push_back(std::move(sample.target));
-    }
-
-    return {Tensor::stack(inputs, 0), Tensor::stack(targets, 0)};
-}
+    return loader_.dataset_.getBatch(batch_indices);
+};
 
 DataLoader::Iterator& DataLoader::Iterator::operator++() {
     std::size_t end = std::min(position_ + loader_.batch_size_, loader_.dataset_.size());

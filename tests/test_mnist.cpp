@@ -180,3 +180,64 @@ TEST_F(MNISTTest, IncompleteFinalBatch) {
     EXPECT_EQ(total, 60000);
     EXPECT_EQ(lastBatchSize, 96);
 }
+
+// ==================== Optimized Batch Loading ====================
+
+TEST_F(MNISTTest, ShuffledBatchIndices) {
+    const std::vector<std::size_t> indices = {42, 7, 100};
+
+    auto [images, labels] = dataset->getBatch(indices);
+
+    ASSERT_EQ(images.shape(), af::dim4(3, 784));
+    ASSERT_EQ(labels.shape(), af::dim4(3));
+
+    EXPECT_EQ(images.data().type(), f32);
+    EXPECT_EQ(labels.data().type(), u8);
+
+    for (std::size_t i = 0; i < indices.size(); ++i) {
+        auto sample = dataset->get(indices[i]);
+
+        af::array batch_image = af::flat(images.data()(i, af::span));
+        af::array difference = af::abs(batch_image - sample.input.data());
+
+        EXPECT_LT(af::max<float>(difference), 1e-6f);
+
+        af::array batch_label = labels.data()(i);
+
+        EXPECT_EQ(batch_label.scalar<std::uint8_t>(), sample.target.data().scalar<std::uint8_t>());
+    }
+}
+
+TEST_F(MNISTTest, DuplicateBatchIndices) {
+    const std::vector<std::size_t> indices = {5, 5, 10};
+
+    auto [images, labels] = dataset->getBatch(indices);
+
+    ASSERT_EQ(images.shape(), af::dim4(3, 784));
+    ASSERT_EQ(labels.shape(), af::dim4(3));
+
+    for (std::size_t i = 0; i < indices.size(); ++i) {
+        auto sample = dataset->get(indices[i]);
+
+        af::array batch_image = af::flat(images.data()(i, af::span));
+        af::array difference = af::abs(batch_image - sample.input.data());
+
+        EXPECT_LT(af::max<float>(difference), 1e-6f);
+
+        af::array batch_label = labels.data()(i);
+
+        EXPECT_EQ(batch_label.scalar<std::uint8_t>(), sample.target.data().scalar<std::uint8_t>());
+    }
+}
+
+TEST_F(MNISTTest, EmptyBatchIndices) {
+    const std::vector<std::size_t> indices;
+
+    EXPECT_THROW(dataset->getBatch(indices), std::invalid_argument);
+}
+
+TEST_F(MNISTTest, InvalidBatchIndex) {
+    const std::vector<std::size_t> indices = {0, 10, dataset->size()};
+
+    EXPECT_THROW(dataset->getBatch(indices), std::out_of_range);
+}
