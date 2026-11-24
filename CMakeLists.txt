@@ -1,5 +1,5 @@
 
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.24)
 
 project(neuro LANGUAGES CXX VERSION 0.1.0)
 
@@ -38,15 +38,15 @@ target_link_libraries(neuro
     PUBLIC ArrayFire::afcuda
 )
 
-option(NEURO_BUILD_EXAMPLES "Whether to build the neuro examples" OFF)
+option(NEURO_BUILD_EXAMPLES "Build neuro examples" OFF)
+option(NEURO_BUILD_TESTS "Build Neuro unit tests" OFF)
 
 if(NEURO_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-include(CTest)
-
-if(BUILD_TESTING)
+if(NEURO_BUILD_TESTS)
+    enable_testing()
     include(FetchContent)
 
     FetchContent_Declare(
