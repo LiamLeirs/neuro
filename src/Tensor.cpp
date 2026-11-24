@@ -1,5 +1,7 @@
 #include "neuro/Tensor.hpp"
 
+#include "neuro/GradMode.hpp"
+
 #include <af/algorithm.h>
 #include <af/arith.h>
 #include <af/array.h>
@@ -99,8 +101,10 @@ Tensor Tensor::makeResult(const af::array& data, std::vector<std::shared_ptr<Ten
                           BackwardRule backward) {
     bool requires_grad = false;
 
-    for (const auto& parent : parents) {
-        requires_grad |= parent->requires_grad_;
+    if (GradMode::isEnabled()) {
+        for (const auto& parent : parents) {
+            requires_grad |= parent->requires_grad_;
+        }
     }
 
     Tensor result(data, requires_grad);
