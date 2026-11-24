@@ -8,13 +8,13 @@ on:
 
 jobs:
   build:
+    name: Linux CUDA Build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check build tools
-        run: |
-          cmake --version
-          g++ --version
+      - name: Build Neuro
+        run: docker build -t neuro-ci .
