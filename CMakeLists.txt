@@ -30,7 +30,7 @@ target_link_libraries(neuro
 )
 
 add_executable(neuro_example
-    examples/main.cpp
+    examples/mnist.cpp
 )
 
 target_link_libraries(neuro_example
