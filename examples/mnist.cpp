@@ -4,6 +4,7 @@
 #include "neuro/data/DataLoader.hpp"
 #include "neuro/data/MNISTDataset.hpp"
 #include "neuro/metrics/Accuracy.hpp"
+#include "neuro/metrics/Mean.hpp"
 #include "neuro/nn/Linear.hpp"
 #include "neuro/nn/ReLU.hpp"
 #include "neuro/nn/Sequential.hpp"
@@ -31,11 +32,8 @@ int main() {
     const int NUM_EPOCHS = 10;
     nn::CrossEntropyLoss criterion;
     Adam optim(model.parameters(), LR);
-
     for (int epoch = 0; epoch < NUM_EPOCHS; ++epoch) {
-        double total_loss = 0.0;
-        std::size_t total_samples = 0;
-
+        metrics::Mean mean;
         for (auto [x, y] : train_loader) {
             optim.zeroGrad();
 
@@ -47,12 +45,11 @@ int main() {
 
             const std::size_t batch_size = x.shape()[0];
 
-            total_loss += loss.data().scalar<float>() * batch_size;
-            total_samples += batch_size;
+            mean.update(loss, batch_size);
         }
 
-        std::cout << "Epoch [" << epoch + 1 << "/" << NUM_EPOCHS
-                  << "] - Loss: " << total_loss / total_samples << '\n';
+        std::cout << "Epoch [" << epoch + 1 << "/" << NUM_EPOCHS << "] - Loss: " << mean.compute()
+                  << '\n';
     }
 
     metrics::Accuracy accuracy;
