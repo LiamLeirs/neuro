@@ -510,24 +510,29 @@ Tensor Tensor::max() const {
 }
 
 Tensor Tensor::gather(const std::vector<int>& indices) const {
-    if (impl_->data_.dims(2) != 1 || impl_->data_.dims(3) != 1) {
+    af::array idx(indices.size(), indices.data());
+    Tensor batch_indices(idx);
+    return gather(batch_indices);
+};
+
+Tensor Tensor::gather(const Tensor& indices) const {
+    if (impl_->data_.dims(2) != 1 || impl_->data_.dims(3) != 1)
         throw std::invalid_argument("Tensor must be 2D");
-    }
-    if (indices.size() != impl_->data_.dims(0)) {
+    if (indices.data().dims(0) != impl_->data_.dims(0) || indices.data().dims(1) != 1 ||
+        indices.data().dims(2) != 1 || indices.data().dims(3) != 1)
         throw std::invalid_argument("Index dimensions don't match");
+    if (!indices.data().isinteger()) {
+        throw std::invalid_argument("Indices aren't integers");
     }
     auto parent = impl_;
-    std::vector<unsigned> linearIndices;
-    linearIndices.reserve(indices.size());
-
-    for (size_t i = 0; i < indices.size(); i++) {
-        if (indices[i] < 0 || indices[i] >= parent->data_.dims(1))
-            throw std::invalid_argument("Index out of range");
-
-        linearIndices.push_back(i + indices[i] * parent->data_.dims(0));
+    af::array outOfBounds = (indices.data() >= parent->data_.dims(1)) || (indices.data() < 0);
+    if (af::anyTrue<bool>(outOfBounds)) {
+        throw std::invalid_argument("Index out of bounds");
     }
+    std::size_t batch_size = indices.data().dims(0);
+    af::array rows = af::range(af::dim4(batch_size), 0, u32);
+    af::array idx = rows + indices.data().as(u32) * batch_size;
 
-    af::array idx(linearIndices.size(), linearIndices.data());
     af::array flat = af::flat(parent->data_);
     af::array result = flat(idx);
 
@@ -539,6 +544,10 @@ Tensor Tensor::gather(const std::vector<int>& indices) const {
         parent->grad_ += af::moddims(scatter, parent->data_.dims());
     });
 };
+
+Tensor Tensor::gather(std::initializer_list<int> indices) const {
+    return gather(std::vector<int>(indices));
+}
 
 // ==================== Transpose ====================
 

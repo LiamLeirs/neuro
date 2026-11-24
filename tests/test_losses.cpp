@@ -119,3 +119,127 @@ TEST(CrossEntropyLoss, NumericalStability) {
         EXPECT_TRUE(std::isfinite(g));
     }
 }
+
+// ==================== Tensor Targets ====================
+
+TEST(CrossEntropyLossTest, TensorTargetForwardEquivalence) {
+    Tensor predicted(af::randu(4, 3, f32));
+
+    std::vector<int> labels = {0, 2, 1, 0};
+    Tensor target(af::array(labels.size(), labels.data()));
+
+    nn::CrossEntropyLoss criterion;
+
+    Tensor vector_loss = criterion(predicted, labels);
+    Tensor tensor_loss = criterion(predicted, target);
+
+    EXPECT_NEAR(vector_loss.data().scalar<float>(), tensor_loss.data().scalar<float>(), 1e-6f);
+}
+
+TEST(CrossEntropyLossTest, TensorTargetBackwardEquivalence) {
+    af::array data = af::randu(4, 3, f32);
+
+    Tensor predicted1(data, true);
+    Tensor predicted2(data, true);
+
+    std::vector<int> labels = {0, 2, 1, 0};
+    Tensor target(af::array(labels.size(), labels.data()));
+
+    nn::CrossEntropyLoss criterion;
+
+    Tensor loss1 = criterion(predicted1, labels);
+    Tensor loss2 = criterion(predicted2, target);
+
+    loss1.backward();
+    loss2.backward();
+
+    af::array difference = af::abs(predicted1.grad() - predicted2.grad());
+
+    EXPECT_LT(af::max<float>(difference), 1e-6f);
+}
+
+TEST(CrossEntropyLossTest, UnsignedByteTargets) {
+    Tensor predicted(af::randu(4, 10, f32));
+
+    std::vector<std::uint8_t> labels = {0, 5, 9, 3};
+    Tensor target(af::array(labels.size(), labels.data()));
+
+    nn::CrossEntropyLoss criterion;
+
+    Tensor tensor_loss = criterion(predicted, target);
+    Tensor vector_loss = criterion(predicted, std::vector<int>{0, 5, 9, 3});
+
+    EXPECT_NEAR(tensor_loss.data().scalar<float>(), vector_loss.data().scalar<float>(), 1e-6f);
+}
+
+TEST(CrossEntropyLossTest, UniformPredictions) {
+    Tensor predicted(af::constant(0, 4, 10, f32), true);
+
+    std::vector<std::uint8_t> labels = {0, 5, 9, 3};
+    Tensor target(af::array(labels.size(), labels.data()));
+
+    Tensor loss = nn::CrossEntropyLoss()(predicted, target);
+
+    EXPECT_NEAR(loss.data().scalar<float>(), std::log(10.0f), 1e-6f);
+
+    loss.backward();
+
+    af::array expected = af::constant(0.025f, 4, 10, f32);
+
+    for (std::size_t i = 0; i < labels.size(); ++i) {
+        expected(i, labels[i]) = -0.225f;
+    }
+
+    EXPECT_LT(af::max<float>(af::abs(predicted.grad() - expected)), 1e-6f);
+}
+
+// ==================== Target Validation ====================
+
+TEST(CrossEntropyLossTest, FloatingPointTargets) {
+    Tensor predicted(af::randu(4, 3, f32));
+    Tensor target(af::constant(1, 4, f32));
+
+    nn::CrossEntropyLoss criterion;
+
+    EXPECT_THROW(criterion(predicted, target), std::invalid_argument);
+}
+
+TEST(CrossEntropyLossTest, IncorrectTargetBatchSize) {
+    Tensor predicted(af::randu(4, 3, f32));
+    Tensor target(af::constant(0, 3, s32));
+
+    nn::CrossEntropyLoss criterion;
+
+    EXPECT_THROW(criterion(predicted, target), std::invalid_argument);
+}
+
+TEST(CrossEntropyLossTest, IncorrectTargetDimensions) {
+    Tensor predicted(af::randu(4, 3, f32));
+    Tensor target(af::constant(0, 4, 2, s32));
+
+    nn::CrossEntropyLoss criterion;
+
+    EXPECT_THROW(criterion(predicted, target), std::invalid_argument);
+}
+
+TEST(CrossEntropyLossTest, NegativeTargetIndex) {
+    Tensor predicted(af::randu(4, 3, f32));
+
+    std::vector<int> labels = {0, -1, 2, 0};
+    Tensor target(af::array(labels.size(), labels.data()));
+
+    nn::CrossEntropyLoss criterion;
+
+    EXPECT_THROW(criterion(predicted, target), std::invalid_argument);
+}
+
+TEST(CrossEntropyLossTest, OutOfBoundsTargetIndex) {
+    Tensor predicted(af::randu(4, 3, f32));
+
+    std::vector<int> labels = {0, 3, 2, 0};
+    Tensor target(af::array(labels.size(), labels.data()));
+
+    nn::CrossEntropyLoss criterion;
+
+    EXPECT_THROW(criterion(predicted, target), std::invalid_argument);
+}

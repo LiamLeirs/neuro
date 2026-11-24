@@ -44,6 +44,8 @@ public:
     Tensor max(int dim) const;
     Tensor max() const;
     Tensor gather(const std::vector<int>& indices) const;
+    Tensor gather(const Tensor& indices) const;
+    Tensor gather(std::initializer_list<int> indices) const;
     Tensor abs() const;
     Tensor exp() const;
     Tensor log() const;
