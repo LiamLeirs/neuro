@@ -15,7 +15,7 @@ inline void expectArrayNear(const af::array& actual, const af::dim4& expectedSha
     ASSERT_EQ(actual.elements(), expected.size()) << "Tensor element count mismatch";
 
     std::vector<float> values(expected.size());
-    actual.host(values.data());
+    actual.as(f32).host(values.data());
 
     for (size_t i = 0; i < expected.size(); ++i) {
         EXPECT_NEAR(values[i], expected[i], tolerance) << "Mismatch at flat index " << i;

@@ -1,4 +1,5 @@
 
+#include "neuro/GradMode.hpp"
 #include "neuro/Tensor.hpp"
 #include "neuro/data/DataLoader.hpp"
 #include "neuro/data/MNISTDataset.hpp"
@@ -59,16 +60,19 @@ int main() {
     std::size_t num_correct = 0;
     std::size_t total_samples = 0;
 
-    for (auto [x, y] : test_loader) {
-        Tensor predictions = model(x);
+    {
+        NoGradGuard guard;
+        for (auto [x, y] : test_loader) {
+            Tensor predictions = model(x);
 
-        af::array values, indices;
-        af::max(values, indices, predictions.data(), 1);
+            af::array values, indices;
+            af::max(values, indices, predictions.data(), 1);
 
-        af::array correct = indices == y.data().as(u32);
+            af::array correct = indices == y.data().as(u32);
 
-        num_correct += af::sum<unsigned>(correct.as(u32));
-        total_samples += x.shape()[0];
+            num_correct += af::sum<unsigned>(correct.as(u32));
+            total_samples += x.shape()[0];
+        }
     }
 
     double accuracy = 100.0 * num_correct / total_samples;

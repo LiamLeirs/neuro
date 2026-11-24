@@ -15,6 +15,7 @@ add_executable(neuro_tests
     test_stacking.cpp
     test_mnist.cpp
     test_grad_mode.cpp
+    test_tensor_argmax.cpp
 )
 
 target_link_libraries(neuro_tests

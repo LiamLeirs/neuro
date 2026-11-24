@@ -513,6 +513,15 @@ Tensor Tensor::max() const {
     });
 }
 
+Tensor Tensor::argmax(int dim) const {
+    if (dim < 0 || dim >= 4) {
+        throw std::out_of_range("Tensor dimension must be between 0 and 3");
+    }
+    af::array max_vals, max_idxs;
+    af::max(max_vals, max_idxs, impl_->data_, dim);
+    return Tensor(max_idxs);
+};
+
 Tensor Tensor::gather(const std::vector<int>& indices) const {
     af::array idx(indices.size(), indices.data());
     Tensor batch_indices(idx);
