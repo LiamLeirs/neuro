@@ -1,17 +1,18 @@
 #pragma once
 
 #include "neuro/Tensor.hpp"
+#include "neuro/metrics/Metric.hpp"
 
 #include <af/algorithm.h>
 #include <stdexcept>
 
 namespace neuro::metrics {
 
-class Accuracy {
+class Accuracy : public Metric {
 public:
-    void update(const Tensor& predictions, const Tensor& targets);
-    double compute() const;
-    void reset();
+    void update(const Tensor& predictions, const Tensor& targets) override;
+    double compute() const override;
+    void reset() override;
 
 private:
     std::size_t num_correct_ = 0;

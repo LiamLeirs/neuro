@@ -2,11 +2,14 @@
 
 #include "neuro/Tensor.hpp"
 #include "neuro/data/DataLoader.hpp"
+#include "neuro/metrics/Metric.hpp"
 #include "neuro/nn/Module.hpp"
 #include "neuro/optim/Optimizer.hpp"
 
 #include <cstddef>
 #include <functional>
+#include <map>
+#include <memory>
 
 namespace neuro {
 
@@ -18,14 +21,23 @@ public:
 
     void fit(DataLoader& loader, std::size_t num_epochs);
 
-    double evaluate(DataLoader& loader);
+    std::map<std::string, double> evaluate(DataLoader& loader);
 
-    double trainEpoch(DataLoader& loader);
+    void addMetric(std::string metric_name, std::unique_ptr<metrics::Metric> metric);
 
 private:
     nn::Module& model_;
     Optimizer& optim_;
     LossFunction criterion_;
+    std::map<std::string, std::unique_ptr<metrics::Metric>> metrics_;
+
+    void resetMetrics();
+
+    std::map<std::string, double> trainEpoch(DataLoader& loader);
+
+    void updateMetrics(const Tensor& predictions, const Tensor& targets);
+
+    std::map<std::string, double> computeMetrics() const;
 };
 
 } // namespace neuro

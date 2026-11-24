@@ -35,11 +35,15 @@ int main() {
     Adam optim(model.parameters(), LR);
 
     Trainer trainer(model, optim, criterion);
+
+    trainer.addMetric("accuracy", std::make_unique<metrics::Accuracy>());
+
     trainer.fit(train_loader, NUM_EPOCHS);
 
-    double loss = trainer.evaluate(test_loader);
+    auto results = trainer.evaluate(test_loader);
 
-    std::cout << "\nFinal Test Loss: " << loss << "\n";
+    std::cout << "\nFinal Test Loss: " << results.at("loss") << '\n';
+    std::cout << "Final Test Accuracy: " << results.at("accuracy") * 100.0 << "%\n";
 
     return 0;
 }
