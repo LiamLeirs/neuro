@@ -1,5 +1,11 @@
 # Neuro
 
+![CI](https://github.com/LiamLeirs/neuro/actions/workflows/ci.yml/badge.svg)
+![C++20](https://img.shields.io/badge/C%2B%2B-20-blue)
+![CUDA](https://img.shields.io/badge/CUDA-enabled-76B900)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Platform](https://img.shields.io/badge/platform-Linux-lightgrey)
+
 Neuro is a GPU-first deep learning library written in C++20, built on top of ArrayFire and CUDA. It implements a custom reverse-mode automatic differentiation engine and provides a PyTorch-inspired API for building, training and evaluating neural networks.
 
 The project aims to explore the internal workings of deep learning frameworks, from tensor operations and computational graphs to gradient propagation and model optimization.
