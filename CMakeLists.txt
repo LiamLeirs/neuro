@@ -20,6 +20,7 @@ add_library(neuro
     src/data/TensorDataset.cpp
     src/data/MNISTDataset.cpp
     src/metrics/Accuracy.cpp
+    src/metrics/Mean.cpp
 )
 
 target_include_directories(neuro
