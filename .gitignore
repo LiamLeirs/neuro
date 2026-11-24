@@ -1,14 +1,25 @@
-
+# Build artifacts
 /build/
-/.vscode/
 *.o
 *.so
+*.so.*
 *.a
-/data/
-/checkpoints/
-
-# Build artifacts
 /compile_commands.json
 
-# Language server cache
+# IDE and language server
+/.vscode/
 /.cache/
+
+# Datasets
+/data/
+
+# Model checkpoints
+/checkpoints/
+
+# CMake user configuration
+/CMakeUserPresets.json
+
+# Temporary files
+*.swp
+*.tmp
+*~
