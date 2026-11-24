@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN wget -O /tmp/arrayfire.sh "https://arrayfire.gateway.scarf.sh/linux/3.10.0/ArrayFire.sh" \
+RUN wget -nv -O /tmp/arrayfire.sh "https://arrayfire.gateway.scarf.sh/linux/3.10.0/ArrayFire.sh" \
     && bash /tmp/arrayfire.sh \
         --skip-license \
         --prefix=/opt \
@@ -18,12 +18,12 @@ RUN wget -O /tmp/arrayfire.sh "https://arrayfire.gateway.scarf.sh/linux/3.10.0/A
 
 ENV CMAKE_PREFIX_PATH=/opt/ArrayFire-3.10.0-Linux
 
+RUN ln -s libcuda.so \
+    /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so.1
+
 WORKDIR /workspace
 
 COPY . .
-
-RUN ln -s libcuda.so \
-    /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so.1
 
 RUN cmake -S . -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
