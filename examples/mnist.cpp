@@ -1,6 +1,7 @@
 
 #include "neuro/GradMode.hpp"
 #include "neuro/Tensor.hpp"
+#include "neuro/Trainer.hpp"
 #include "neuro/data/DataLoader.hpp"
 #include "neuro/data/MNISTDataset.hpp"
 #include "neuro/metrics/Accuracy.hpp"
@@ -32,25 +33,9 @@ int main() {
     const int NUM_EPOCHS = 10;
     nn::CrossEntropyLoss criterion;
     Adam optim(model.parameters(), LR);
-    for (int epoch = 0; epoch < NUM_EPOCHS; ++epoch) {
-        metrics::Mean mean;
-        for (auto [x, y] : train_loader) {
-            optim.zeroGrad();
 
-            Tensor output = model(x);
-            Tensor loss = criterion(output, y);
-
-            loss.backward();
-            optim.step();
-
-            const std::size_t batch_size = x.shape()[0];
-
-            mean.update(loss, batch_size);
-        }
-
-        std::cout << "Epoch [" << epoch + 1 << "/" << NUM_EPOCHS << "] - Loss: " << mean.compute()
-                  << '\n';
-    }
+    Trainer trainer(model, optim, criterion);
+    trainer.fit(train_loader, NUM_EPOCHS);
 
     metrics::Accuracy accuracy;
 
