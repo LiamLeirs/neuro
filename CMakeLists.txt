@@ -38,13 +38,11 @@ target_link_libraries(neuro
     PUBLIC ArrayFire::afcuda
 )
 
-add_executable(neuro_example
-    examples/mnist.cpp
-)
+option(NEURO_BUILD_EXAMPLES "Whether to build the neuro examples" OFF)
 
-target_link_libraries(neuro_example
-    PRIVATE Neuro::Neuro
-)
+if(NEURO_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
 
 include(CTest)
 
