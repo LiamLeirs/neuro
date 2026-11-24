@@ -14,6 +14,8 @@ Initial public release of Neuro.
 ### Added
 
 - GPU-accelerated tensor operations using ArrayFire and CUDA.
+- CPU backend support through ArrayFire.
+- Configurable CPU and CUDA backends through the NEURO_BACKEND CMake option.
 - Reverse-mode automatic differentiation with dynamic computational graphs.
 - Broadcasting, matrix multiplication, reductions, indexing and stacking.
 - Gradient tracking control through GradMode and NoGradGuard.
@@ -28,5 +30,9 @@ Initial public release of Neuro.
 - Accuracy and weighted mean metrics.
 - Linear regression, XOR and MNIST examples.
 - Installable CMake package with version compatibility checks.
-- 387 unit tests passing in Release mode.
+- 387 unit tests passing in Release mode on both CPU and CUDA backends.
+- Reproducible Docker environments for CPU testing and CUDA build verification.
+- Automatic MNIST dataset setup in the CPU Docker environment.
+- GitHub Actions workflows for CUDA build verification and automated CPU testing.
+- Docker build caching for continuous integration.
 - Project documentation and MIT license.

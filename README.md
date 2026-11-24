@@ -1,20 +1,26 @@
 # Neuro
 
 ![CI](https://github.com/LiamLeirs/neuro/actions/workflows/ci.yml/badge.svg)
+
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-blue)
+
 ![CUDA](https://img.shields.io/badge/CUDA-enabled-76B900)
+![CPU](https://img.shields.io/badge/CPU-enabled-blue)
+
 ![License](https://img.shields.io/badge/license-MIT-blue)
+
 ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey)
 
-Neuro is a GPU-first deep learning library written in C++20, built on top of ArrayFire and CUDA. It implements a custom reverse-mode automatic differentiation engine and provides a PyTorch-inspired API for building, training and evaluating neural networks.
+Neuro is a GPU-first deep learning library written in C++20, built on top of ArrayFire with CUDA and CPU backend support. It implements a custom reverse-mode automatic differentiation engine and provides a PyTorch-inspired API for building, training and evaluating neural networks.
 
 The project aims to explore the internal workings of deep learning frameworks, from tensor operations and computational graphs to gradient propagation and model optimization.
 
-Neuro is currently in early development and targets Linux systems with CUDA-compatible NVIDIA GPUs.
+Neuro is currently in early development and targets Linux systems with either a CPU or a CUDA-compatible NVIDIA GPU.
 
 ## Features
 
-- **GPU-accelerated tensors** — Tensor arithmetic, broadcasting, matrix multiplication, reductions and indexing powered by ArrayFire and CUDA.
+- **GPU-accelerated tensors** — Tensor arithmetic, broadcasting, matrix multiplication, reductions and indexing powered by ArrayFire.
+- **Configurable backend** — CUDA acceleration by default, with CPU support selected at build time.
 - **Automatic differentiation** — Dynamic computational graphs, reverse-mode gradient propagation and gradient tracking control.
 - **Neural networks** — Fully connected layers, activation functions and composable sequential models.
 - **Optimizers** — Stochastic Gradient Descent (SGD) and Adam.
@@ -22,7 +28,7 @@ Neuro is currently in early development and targets Linux systems with CUDA-comp
 - **Data utilities** — Dataset abstractions, batched data loading, shuffling and optimized MNIST data loading.
 - **Training utilities** — Reusable training and evaluation loops, extensible metrics and training history.
 - **CMake integration** — Installable CMake package with support for `find_package(Neuro)`.
-- **Unit testing** — 387 passing unit tests covering tensor operations, automatic differentiation, neural network components and training utilities.
+- **Unit testing** — 387 tests passing locally on both CPU and CUDA, covering tensor operations, automatic differentiation, neural network components and training utilities.
 
 ## Quick Start
 
@@ -33,19 +39,15 @@ Neuro automatically constructs a computational graph during the forward pass and
 ```cpp
 #include <neuro/Tensor.hpp>
 #include <iostream>
-
 using namespace neuro;
-
 int main() {
     Tensor x({2.0f}, true);
     Tensor y({3.0f}, true);
-
     Tensor z = x * y + x;
     z.backward();
-
     std::cout << "Result: " << z << '\n';
-    std::cout << "Gradient of x: " << x.grad() << '\n';
-    std::cout << "Gradient of y: " << y.grad() << '\n';
+    std::cout << "Gradient of x: " << x.grad().scalar<float>() << '\n';
+    std::cout << "Gradient of y: " << y.grad().scalar<float>() << '\n';
 }
 ```
 
@@ -66,9 +68,7 @@ Neuro provides a high-level training API for building and training neural networ
 #include <neuro/nn/Sigmoid.hpp>
 #include <neuro/nn/loss/MSELoss.hpp>
 #include <neuro/optim/Adam.hpp>
-
 using namespace neuro;
-
 int main() {
     TensorDataset dataset(
         {
@@ -84,19 +84,15 @@ int main() {
             Tensor{0.f}
         }
     );
-
     DataLoader loader(dataset, 4, true);
-
     nn::Sequential model(
         nn::Linear(2, 8),
         nn::Tanh(),
         nn::Linear(8, 1),
         nn::Sigmoid()
     );
-
     nn::MSELoss criterion;
     Adam optimizer(model.parameters(), 0.01);
-
     Trainer trainer(model, optimizer, criterion);
     trainer.fit(loader, 1000);
 }
@@ -106,20 +102,19 @@ The example trains a small multilayer perceptron to learn the XOR function. Grad
 
 ## Requirements
 
-Neuro currently targets Linux systems with NVIDIA GPUs and uses ArrayFire's CUDA backend for GPU-accelerated computation.
+Neuro currently targets Linux and supports ArrayFire's CUDA and CPU backends.
 
 ### System Requirements
 
 - Linux
-- CUDA-compatible NVIDIA GPU
-- NVIDIA drivers compatible with the installed CUDA version
+- For CUDA builds only: a CUDA-compatible NVIDIA GPU and compatible NVIDIA drivers
 
 ### Build Dependencies
 
 - C++ compiler with C++20 support
 - CMake 3.24 or newer
-- ArrayFire with CUDA backend support
-- NVIDIA CUDA Toolkit
+- ArrayFire with support for the selected backend (CPU or CUDA)
+- NVIDIA CUDA Toolkit (CUDA builds only)
 
 ### Optional Dependencies
 
@@ -135,7 +130,7 @@ Neuro has been developed and tested using the following environment:
 - CUDA 13.5
 - ArrayFire 3.10.1
 
-Other Linux distributions and dependency versions may work but have not been officially validated.
+Docker builds have also been verified locally on Ubuntu 24.04 with ArrayFire 3.10.0 and CUDA Toolkit 12.8.1, including CPU test execution. Other environments may work but have not been validated.
 
 ## Building from Source
 
@@ -159,27 +154,38 @@ By default, only the Neuro library is built. Examples and unit tests can be enab
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `NEURO_BACKEND` | `CUDA` | Select `CUDA` or `CPU` |
 | `NEURO_BUILD_EXAMPLES` | `OFF` | Build example applications |
 | `NEURO_BUILD_TESTS` | `OFF` | Build unit tests |
 
 To build Neuro with both enabled:
 
 ```bash
-cmake -S . -B build \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DNEURO_BUILD_EXAMPLES=ON \
+cmake -S . -B build \\
+    -DCMAKE_BUILD_TYPE=Release \\
+    -DNEURO_BUILD_EXAMPLES=ON \\
     -DNEURO_BUILD_TESTS=ON
-
 cmake --build build -j
 ```
+
+### Backend Selection
+
+CUDA is the default backend. To build for CPU instead, use:
+
+```bash
+cmake -S . -B build/cpu -DNEURO_BACKEND=CPU -DCMAKE_BUILD_TYPE=Release
+cmake --build build/cpu -j
+```
+
+The public API is identical for both backends. The backend is selected at configuration time, not at runtime. Installed packages retain the backend selected when building Neuro.
 
 ### Locating ArrayFire
 
 If CMake cannot locate ArrayFire automatically, specify its installation prefix:
 
 ```bash
-cmake -S . -B build \
-    -DCMAKE_BUILD_TYPE=Release \
+cmake -S . -B build \\
+    -DCMAKE_BUILD_TYPE=Release \\
     -DCMAKE_PREFIX_PATH=/path/to/arrayfire
 ```
 
@@ -207,13 +213,9 @@ Once Neuro is installed, it can be integrated into any CMake-based C++ project u
 
 ```cmake
 cmake_minimum_required(VERSION 3.24)
-
 project(my_project LANGUAGES CXX)
-
 find_package(Neuro 0.1 CONFIG REQUIRED)
-
 add_executable(my_app main.cpp)
-
 target_link_libraries(my_app PRIVATE Neuro::Neuro)
 ```
 
@@ -224,13 +226,10 @@ The `Neuro::Neuro` target automatically propagates the required include director
 ```cpp
 #include <neuro/Tensor.hpp>
 #include <iostream>
-
 int main() {
     neuro::Tensor x{1.0f, 2.0f, 3.0f};
     neuro::Tensor y = x * 2.0f;
-
     std::cout << y << '\n';
-
     return 0;
 }
 ```
@@ -257,7 +256,7 @@ ArrayFire is resolved automatically during CMake configuration, provided that it
 
 ### Version Compatibility
 
-Neuro uses semantic versioning. During pre-1.0 development, compatibility is maintained within the same minor version.
+Neuro uses semantic versioning. During pre-1.0 development, the CMake package declares compatibility within the same minor version.
 
 For example, a project requesting Neuro 0.1.0 can accept version 0.1.1, but not version 0.2.0.
 
@@ -276,10 +275,9 @@ Neuro includes several example applications demonstrating its tensor, automatic 
 Build Neuro with examples enabled:
 
 ```bash
-cmake -S . -B build \
-    -DCMAKE_BUILD_TYPE=Release \
+cmake -S . -B build \\
+    -DCMAKE_BUILD_TYPE=Release \\
     -DNEURO_BUILD_EXAMPLES=ON
-
 cmake --build build -j
 ```
 
@@ -321,7 +319,7 @@ The MNIST example demonstrates an end-to-end training pipeline using Neuro's dat
 | Metric | Value |
 |--------|-------|
 | Final training loss | 0.0324 |
-| Final training accuracy | 99.11% |
+| Final training accuracy (during training) | 99.11% |
 | Test loss | 0.0815 |
 | Test accuracy | **97.57%** |
 
@@ -359,10 +357,9 @@ Neuro includes a comprehensive unit test suite built with GoogleTest. The tests 
 Enable unit tests during CMake configuration:
 
 ```bash
-cmake -S . -B build \
-    -DCMAKE_BUILD_TYPE=Release \
+cmake -S . -B build \\
+    -DCMAKE_BUILD_TYPE=Release \\
     -DNEURO_BUILD_TESTS=ON
-
 cmake --build build -j
 ```
 
@@ -384,7 +381,19 @@ ctest --test-dir build -R TrainerTest --output-on-failure
 
 As of v0.1.0, all 387 unit tests pass in Release mode.
 
-A working CUDA environment is required to run the test suite.
+All 387 tests have passed locally on both CPU and CUDA in Release mode. CPU testing does not require a GPU.
+
+The full test suite requires the MNIST files described in [Dataset Setup](#dataset-setup). To run the tests on CPU:
+
+```bash
+cmake -S . -B build/cpu -DNEURO_BACKEND=CPU -DNEURO_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build/cpu -j
+ctest --test-dir build/cpu --output-on-failure --no-tests=error
+```
+
+### Continuous Integration
+
+The GitHub Actions workflow is configured to compile the CUDA backend and build and execute the CPU test suite. The CPU Dockerfile downloads the required MNIST files automatically. CUDA runtime tests are performed locally.
 
 ## Current Limitations
 
@@ -392,7 +401,7 @@ Neuro is an early-stage deep learning library and is not intended to replace est
 
 The current release has the following limitations:
 
-- **Platform support** — Currently developed and tested on Linux with NVIDIA GPUs using the CUDA backend.
+- **Platform support** — Currently developed and tested on Linux with CPU and NVIDIA CUDA backends.
 - **Neural network architectures** — Limited to fully connected networks. Convolutional, recurrent and attention-based layers are not yet supported.
 - **GPU computation** — GPU operations rely on ArrayFire rather than custom CUDA kernels.
 - **Model persistence** — Model serialization and training checkpointing are not yet supported.
@@ -433,11 +442,12 @@ Neuro is under active development, with future releases focusing on expanding ne
 ### Developer Experience
 
 - [ ] Comprehensive API documentation
-- [ ] Continuous integration
+- [x] Continuous integration
 - [ ] Additional examples and tutorials
 - [ ] Extended platform support
 
 The next major development milestone is support for convolutional
+
 neural networks (CNNs).
 
 ## License
