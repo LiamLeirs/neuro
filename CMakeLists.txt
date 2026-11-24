@@ -28,19 +28,23 @@ target_compile_features(neuro PUBLIC cxx_std_20)
 
 set_target_properties(neuro PROPERTIES
     CXX_EXTENSIONS OFF
+    EXPORT_NAME Neuro
 )
 
+include(GNUInstallDirs)
+
 target_include_directories(neuro
-    PUBLIC include
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_link_libraries(neuro
     PUBLIC ArrayFire::afcuda
 )
 
-include(GNUInstallDirs)
-
 install(TARGETS neuro
+    EXPORT NeuroTargets
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -48,6 +52,12 @@ install(TARGETS neuro
 
 install(DIRECTORY include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(EXPORT NeuroTargets
+    FILE NeuroTargets.cmake
+    NAMESPACE Neuro::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Neuro
 )
 
 option(NEURO_BUILD_EXAMPLES "Build neuro examples" OFF)
