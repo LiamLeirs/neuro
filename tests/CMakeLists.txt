@@ -16,6 +16,7 @@ add_executable(neuro_tests
     test_mnist.cpp
     test_grad_mode.cpp
     test_tensor_argmax.cpp
+    test_accuracy.cpp
 )
 
 target_link_libraries(neuro_tests

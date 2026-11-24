@@ -19,6 +19,7 @@ add_library(neuro
     src/nn/loss/CrossEntropyLoss.cpp
     src/data/TensorDataset.cpp
     src/data/MNISTDataset.cpp
+    src/metrics/Accuracy.cpp
 )
 
 target_include_directories(neuro
