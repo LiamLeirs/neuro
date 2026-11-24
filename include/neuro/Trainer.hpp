@@ -33,6 +33,12 @@ public:
 
     void addMetric(std::string metric_name, std::unique_ptr<metrics::Metric> metric);
 
+    template <typename MetricType, typename... Args>
+        requires std::derived_from<MetricType, metrics::Metric>
+    void addMetric(std::string name, Args&&... args) {
+        addMetric(std::move(name), std::make_unique<MetricType>(std::forward<Args>(args)...));
+    }
+
 private:
     nn::Module& model_;
     Optimizer& optim_;

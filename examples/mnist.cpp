@@ -1,11 +1,8 @@
 
-#include "neuro/GradMode.hpp"
-#include "neuro/Tensor.hpp"
 #include "neuro/Trainer.hpp"
 #include "neuro/data/DataLoader.hpp"
 #include "neuro/data/MNISTDataset.hpp"
 #include "neuro/metrics/Accuracy.hpp"
-#include "neuro/metrics/Mean.hpp"
 #include "neuro/nn/Linear.hpp"
 #include "neuro/nn/ReLU.hpp"
 #include "neuro/nn/Sequential.hpp"
@@ -36,7 +33,7 @@ int main() {
 
     Trainer trainer(model, optim, criterion);
 
-    trainer.addMetric("accuracy", std::make_unique<metrics::Accuracy>());
+    trainer.addMetric<metrics::Accuracy>("accuracy");
 
     trainer.fit(train_loader, NUM_EPOCHS);
 
