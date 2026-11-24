@@ -1,0 +1,7 @@
+.git
+build/
+data/
+.cache/
+.vscode/
+compile_commands.json
+checkpoints/

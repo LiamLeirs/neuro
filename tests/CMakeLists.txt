@@ -28,4 +28,6 @@ target_link_libraries(neuro_tests
 )
 
 include(GoogleTest)
-gtest_discover_tests(neuro_tests)
+gtest_discover_tests(neuro_tests
+    DISCOVERY_MODE PRE_TEST
+)
