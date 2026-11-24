@@ -37,18 +37,9 @@ int main() {
     Trainer trainer(model, optim, criterion);
     trainer.fit(train_loader, NUM_EPOCHS);
 
-    metrics::Accuracy accuracy;
+    double loss = trainer.evaluate(test_loader);
 
-    {
-        NoGradGuard guard;
-        for (auto [x, y] : test_loader) {
-            Tensor predictions = model(x);
-
-            accuracy.update(predictions, y);
-        }
-    }
-
-    std::cout << "\nFinal Test Accuracy: " << accuracy.compute() * 100 << "%\n";
+    std::cout << "\nFinal Test Loss: " << loss << "\n";
 
     return 0;
 }

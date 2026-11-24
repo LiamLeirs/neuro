@@ -18,6 +18,8 @@ public:
 
     void fit(DataLoader& loader, std::size_t num_epochs);
 
+    double evaluate(DataLoader& loader);
+
     double trainEpoch(DataLoader& loader);
 
 private:
