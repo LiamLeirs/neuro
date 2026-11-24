@@ -38,6 +38,18 @@ target_link_libraries(neuro
     PUBLIC ArrayFire::afcuda
 )
 
+include(GNUInstallDirs)
+
+install(TARGETS neuro
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+install(DIRECTORY include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
 option(NEURO_BUILD_EXAMPLES "Build neuro examples" OFF)
 option(NEURO_BUILD_TESTS "Build Neuro unit tests" OFF)
 
