@@ -10,18 +10,26 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace neuro {
 
+using MetricResults = std::map<std::string, double>;
+using TrainingHistory = std::vector<MetricResults>;
 using LossFunction = std::function<Tensor(const Tensor&, const Tensor&)>;
+
+struct TrainerConfig {
+    bool verbose = true;
+};
 
 class Trainer {
 public:
-    Trainer(nn::Module& model, Optimizer& optim, LossFunction criterion);
+    Trainer(nn::Module& model, Optimizer& optim, LossFunction criterion, TrainerConfig config = {});
 
-    void fit(DataLoader& loader, std::size_t num_epochs);
+    TrainingHistory fit(DataLoader& loader, std::size_t num_epochs);
 
-    std::map<std::string, double> evaluate(DataLoader& loader);
+    MetricResults evaluate(DataLoader& loader);
 
     void addMetric(std::string metric_name, std::unique_ptr<metrics::Metric> metric);
 
@@ -29,15 +37,16 @@ private:
     nn::Module& model_;
     Optimizer& optim_;
     LossFunction criterion_;
+    TrainerConfig config_;
     std::map<std::string, std::unique_ptr<metrics::Metric>> metrics_;
 
     void resetMetrics();
 
-    std::map<std::string, double> trainEpoch(DataLoader& loader);
+    MetricResults trainEpoch(DataLoader& loader);
 
     void updateMetrics(const Tensor& predictions, const Tensor& targets);
 
-    std::map<std::string, double> computeMetrics() const;
+    MetricResults computeMetrics() const;
 };
 
 } // namespace neuro

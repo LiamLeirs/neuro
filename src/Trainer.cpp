@@ -9,25 +9,34 @@
 #include <utility>
 
 namespace neuro {
-Trainer::Trainer(nn::Module& model, Optimizer& optim, LossFunction criterion)
-    : model_(model), optim_(optim), criterion_(std::move(criterion)) {
+Trainer::Trainer(nn::Module& model, Optimizer& optim, LossFunction criterion, TrainerConfig config)
+    : model_(model), optim_(optim), criterion_(std::move(criterion)), config_(config) {
     if (!criterion_) {
         throw std::invalid_argument("Provided criterion is invalid");
     }
 }
 
-void Trainer::fit(DataLoader& loader, std::size_t num_epochs) {
+TrainingHistory Trainer::fit(DataLoader& loader, std::size_t num_epochs) {
+    TrainingHistory history;
+    history.reserve(num_epochs);
+
     for (std::size_t epoch = 0; epoch < num_epochs; epoch++) {
-        std::map<std::string, double> results = trainEpoch(loader);
-        std::cout << "Epoch [" << epoch + 1 << "/" << num_epochs << "]";
-        for (auto& [name, value] : results) {
-            std::cout << " - " << name << ": " << value << " ";
+        MetricResults results = trainEpoch(loader);
+
+        if (config_.verbose) {
+            std::cout << "Epoch [" << epoch + 1 << "/" << num_epochs << "]";
+            for (auto& [name, value] : results) {
+                std::cout << " - " << name << ": " << value << " ";
+            }
+            std::cout << '\n';
         }
-        std::cout << '\n';
+
+        history.push_back(std::move(results));
     }
+    return history;
 }
 
-std::map<std::string, double> Trainer::trainEpoch(DataLoader& loader) {
+MetricResults Trainer::trainEpoch(DataLoader& loader) {
     metrics::Mean mean;
 
     resetMetrics();
@@ -54,7 +63,7 @@ std::map<std::string, double> Trainer::trainEpoch(DataLoader& loader) {
     return results;
 }
 
-std::map<std::string, double> Trainer::evaluate(DataLoader& loader) {
+MetricResults Trainer::evaluate(DataLoader& loader) {
     metrics::Mean mean;
     NoGradGuard guard;
 
@@ -101,8 +110,8 @@ void Trainer::updateMetrics(const Tensor& predictions, const Tensor& targets) {
     }
 }
 
-std::map<std::string, double> Trainer::computeMetrics() const {
-    std::map<std::string, double> results;
+MetricResults Trainer::computeMetrics() const {
+    MetricResults results;
     for (auto& [name, metric] : metrics_) {
         results[name] = metric->compute();
     }
