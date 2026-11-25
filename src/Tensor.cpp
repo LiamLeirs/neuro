@@ -674,6 +674,16 @@ Tensor Tensor::avgpool2d(int window_size, int stride, int padding, bool count_in
         });
 }
 
+Tensor Tensor::globalAvgPool2d() const {
+    if (data().isempty())
+        throw std::invalid_argument("Input must not be empty");
+
+    if (data().type() != f32 && data().type() != f64)
+        throw std::invalid_argument("Global average pooling requires floating-point input");
+
+    return mean(2).mean(3);
+}
+
 namespace {
 
 af::array insert_dim(const af::array& in, int dim) {
