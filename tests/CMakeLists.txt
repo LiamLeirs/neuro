@@ -24,6 +24,7 @@ add_executable(neuro_tests
     test_flatten.cpp
     test_conv2d.cpp
     test_conv2d_module.cpp
+    test_maxpool2d.cpp
 )
 
 target_link_libraries(neuro_tests

@@ -10,6 +10,7 @@
 #include <af/defines.h>
 #include <af/dim4.hpp>
 #include <af/gfor.h>
+#include <af/image.h>
 #include <af/index.h>
 #include <af/ml.h>
 #include <af/seq.h>
@@ -474,6 +475,106 @@ Tensor Tensor::conv2d(const Tensor& weights, int stride, int padding, int dilati
                           }
                       });
 }
+
+Tensor Tensor::maxpool2d(int window_size, int stride, int padding) const {
+    if (data().isempty())
+        throw std::invalid_argument("Input must not be empty");
+
+    if (data().type() != f32 && data().type() != f64)
+        throw std::invalid_argument("Max pooling requires floating-point input");
+
+    if (window_size < 1)
+        throw std::invalid_argument("Window size must be positive");
+
+    if (stride < 1)
+        throw std::invalid_argument("Stride must be positive");
+
+    if (padding < 0)
+        throw std::invalid_argument("Padding must be non-negative");
+
+    if (padding > window_size / 2)
+        throw std::invalid_argument("Padding must not exceed half the window size");
+
+    const auto dims = shape();
+    const dim_t batch = dims[0];
+    const dim_t channels = dims[1];
+    const dim_t height = dims[2];
+    const dim_t width = dims[3];
+
+    const dim_t padded_h = height + 2LL * padding;
+    const dim_t padded_w = width + 2LL * padding;
+
+    if (window_size > padded_h || window_size > padded_w)
+        throw std::invalid_argument("Window exceeds padded input dimensions");
+
+    const dim_t out_h = (padded_h - window_size) / stride + 1;
+    const dim_t out_w = (padded_w - window_size) / stride + 1;
+    const dim_t window_elements = static_cast<dim_t>(window_size) * window_size;
+
+    // Convert NCHW to ArrayFire's spatial layout (WHCN).
+    const af::array input = af::reorder(data(), 3, 2, 1, 0);
+    af::array padded = input;
+
+    // Explicit negative-infinity padding prevents padded values
+    // from becoming maxima when input values are negative.
+    if (padding > 0) {
+        padded = af::constant(-std::numeric_limits<double>::infinity(),
+                              af::dim4(padded_w, padded_h, channels, batch), input.type());
+
+        padded(af::seq(padding, padding + width - 1), af::seq(padding, padding + height - 1),
+               af::span, af::span) = input;
+    }
+
+    // Extract pooling windows and retain their maximum indices.
+    const af::array cols = af::unwrap(padded, window_size, window_size, stride, stride, 0, 0);
+
+    af::array max_vals, max_indices;
+    af::max(max_vals, max_indices, cols, 0);
+
+    const af::array output =
+        af::reorder(af::moddims(max_vals, out_w, out_h, channels, batch), 3, 2, 1, 0);
+
+    auto parent = impl_;
+
+    return makeResult(
+        output, {parent},
+        [parent, max_indices, channels, batch, width, height, padded_w, padded_h, out_w, out_h,
+         window_elements, window_size, stride, padding](const af::array& grad) {
+            if (!parent->requires_grad_)
+                return;
+
+            // Align upstream gradients with the pooling windows.
+            const af::array grad_cols =
+                af::moddims(af::reorder(grad, 3, 2, 1, 0), 1, out_w * out_h, channels, batch);
+
+            // Construct a mask selecting one maximum per window.
+            const af::array indices =
+                af::tile(af::range(af::dim4(window_elements), 0, u32), max_indices.dims());
+
+            const af::array mask = indices == af::tile(max_indices, window_elements);
+
+            // Route each gradient to its selected maximum.
+            const af::array window_grads =
+                af::select(mask, af::tile(grad_cols, window_elements), 0.0);
+
+            // Reconstruct spatial gradients, summing overlapping windows.
+            const af::array padded_grad = af::wrap(window_grads, padded_w, padded_h, window_size,
+                                                   window_size, stride, stride, 0, 0);
+
+            af::array input_grad = padded_grad;
+
+            // Remove explicit padding.
+            if (padding > 0) {
+                input_grad =
+                    padded_grad(af::seq(padding, padding + width - 1),
+                                af::seq(padding, padding + height - 1), af::span, af::span);
+            }
+
+            // Restore NCHW layout and accumulate gradients.
+            parent->grad_ += af::reorder(input_grad, 3, 2, 1, 0);
+        });
+}
+
 namespace {
 
 af::array insert_dim(const af::array& in, int dim) {
