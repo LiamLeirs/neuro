@@ -4,6 +4,8 @@
 #include "neuro/Tensor.hpp"
 
 #include <af/array.h>
+#include <af/data.h>
+#include <af/defines.h>
 #include <arrayfire.h>
 #include <cstdint>
 #include <fstream>
@@ -25,7 +27,14 @@ std::uint32_t read_uint32(std::ifstream& file) {
 
 } // namespace
 
-MNISTDataset::MNISTDataset(const std::string& image_filename, const std::string& label_filename) {
+MNISTDataset::MNISTDataset(const std::string& image_filename, const std::string& label_filename,
+                           MNISTLayout layout)
+    : layout_(layout) {
+
+    if (layout_ != MNISTLayout::Flattened && layout_ != MNISTLayout::Image) {
+        throw std::invalid_argument("Invalid layout supplied");
+    }
+
     std::ifstream images(image_filename, std::ios::binary);
     std::ifstream labels(label_filename, std::ios::binary);
 
@@ -86,6 +95,13 @@ std::pair<Tensor, Tensor> MNISTDataset::getBatch(std::span<const std::size_t> in
     af::array batch_images(batch_size, image_size, image_buffer.data());
     af::array batch_labels(batch_size, label_buffer.data());
 
+    if (layout_ == MNISTLayout::Image) {
+        batch_images =
+            af::moddims(batch_images, af::dim4(static_cast<dim_t>(batch_size), 1, 28, 28));
+
+        batch_images = af::reorder(batch_images, 0, 1, 3, 2);
+    }
+
     batch_images = batch_images.as(f32) / 255.0f;
 
     return {Tensor(batch_images), Tensor(batch_labels)};
@@ -98,8 +114,15 @@ Dataset::Sample MNISTDataset::get(std::size_t index) const {
     constexpr std::size_t image_size = 28 * 28;
 
     const std::uint8_t* pixels = images_.data() + index * image_size;
+    af::array image;
 
-    af::array image(image_size, pixels, afHost);
+    if (layout_ == MNISTLayout::Flattened) {
+        image = af::array(image_size, pixels, afHost);
+    } else if (layout_ == MNISTLayout::Image) {
+        image = af::array(28, 28, pixels, afHost);
+        image = af::moddims(image.T(), af::dim4(1, 28, 28));
+    }
+
     image = image.as(f32) / 255.0f;
 
     af::array label = af::constant(labels_[index], 1, u8);

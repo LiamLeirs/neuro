@@ -11,9 +11,12 @@
 
 namespace neuro {
 
+enum class MNISTLayout { Flattened, Image };
+
 class MNISTDataset : public Dataset {
 public:
-    MNISTDataset(const std::string& image_filename, const std::string& label_filename);
+    MNISTDataset(const std::string& image_filename, const std::string& label_filename,
+                 MNISTLayout layout = MNISTLayout::Flattened);
 
     std::size_t size() const override;
     Sample get(std::size_t index) const override;
@@ -22,6 +25,7 @@ public:
 private:
     std::vector<std::uint8_t> images_;
     std::vector<std::uint8_t> labels_;
+    MNISTLayout layout_;
 };
 
 } // namespace neuro
