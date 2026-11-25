@@ -23,6 +23,7 @@ add_executable(neuro_tests
     test_reorder.cpp
     test_flatten.cpp
     test_conv2d.cpp
+    test_conv2d_module.cpp
 )
 
 target_link_libraries(neuro_tests

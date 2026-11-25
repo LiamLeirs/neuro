@@ -47,6 +47,7 @@ add_library(neuro
     src/metrics/Accuracy.cpp
     src/metrics/Mean.cpp
     src/Trainer.cpp
+    src/nn/Conv2D.cpp
 )
 
 add_library(Neuro::Neuro ALIAS neuro)
