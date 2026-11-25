@@ -575,6 +575,105 @@ Tensor Tensor::maxpool2d(int window_size, int stride, int padding) const {
         });
 }
 
+Tensor Tensor::avgpool2d(int window_size, int stride, int padding, bool count_include_pad) const {
+    if (data().isempty())
+        throw std::invalid_argument("Input must not be empty");
+
+    if (data().type() != f32 && data().type() != f64)
+        throw std::invalid_argument("Average pooling requires floating-point input");
+
+    if (window_size < 1)
+        throw std::invalid_argument("Window size must be positive");
+
+    if (stride < 1)
+        throw std::invalid_argument("Stride must be positive");
+
+    if (padding < 0)
+        throw std::invalid_argument("Padding must be non-negative");
+
+    if (padding > window_size / 2)
+        throw std::invalid_argument("Padding must not exceed half the window size");
+
+    const auto dims = shape();
+    const dim_t batch = dims[0];
+    const dim_t channels = dims[1];
+    const dim_t height = dims[2];
+    const dim_t width = dims[3];
+
+    const dim_t padded_h = height + 2LL * padding;
+    const dim_t padded_w = width + 2LL * padding;
+
+    if (window_size > padded_h || window_size > padded_w)
+        throw std::invalid_argument("Window exceeds padded input dimensions");
+
+    const dim_t out_h = (padded_h - window_size) / stride + 1;
+    const dim_t out_w = (padded_w - window_size) / stride + 1;
+    const dim_t window_elements = static_cast<dim_t>(window_size) * window_size;
+
+    // Convert NCHW to ArrayFire's spatial layout (WHCN).
+    const af::array input = af::reorder(data(), 3, 2, 1, 0);
+
+    // Extract pooling windows with implicit zero padding.
+    const af::array cols =
+        af::unwrap(input, window_size, window_size, stride, stride, padding, padding);
+
+    af::array denominators;
+    af::array mean_vals;
+
+    if (!count_include_pad && padding > 0) {
+        // Count valid input elements in each spatial window.
+        const af::array mask = af::constant(1, af::dim4(width, height), input.type());
+
+        const af::array mask_cols =
+            af::unwrap(mask, window_size, window_size, stride, stride, padding, padding);
+
+        denominators = af::sum(mask_cols, 0);
+
+        // Share spatial denominators across channels and batches.
+        mean_vals = af::sum(cols, 0) / af::tile(denominators, 1, 1, channels, batch);
+    } else {
+        mean_vals = af::mean(cols, 0);
+    }
+
+    // Restore NCHW output layout.
+    const af::array output =
+        af::reorder(af::moddims(mean_vals, out_w, out_h, channels, batch), 3, 2, 1, 0);
+
+    auto parent = impl_;
+
+    return makeResult(
+        output, {parent},
+        [parent, denominators, channels, batch, width, height, out_w, out_h, window_elements,
+         window_size, stride, padding](const af::array& grad) {
+            if (!parent->requires_grad_)
+                return;
+
+            // Align upstream gradients with the pooling windows.
+            const af::array grad_cols =
+                af::moddims(af::reorder(grad, 3, 2, 1, 0), 1, out_w * out_h, channels, batch);
+
+            // Scale each gradient by its averaging denominator.
+            af::array scaled_grad;
+
+            if (denominators.isempty()) {
+                scaled_grad = grad_cols / static_cast<double>(window_elements);
+            } else {
+                scaled_grad = grad_cols / af::tile(denominators, 1, 1, channels, batch);
+            }
+
+            // Distribute gradients equally across window elements.
+            const af::array window_grads = af::tile(scaled_grad, window_elements);
+
+            // Reconstruct spatial gradients, accumulating overlaps
+            // and discarding contributions to padded elements.
+            const af::array input_grad = af::wrap(window_grads, width, height, window_size,
+                                                  window_size, stride, stride, padding, padding);
+
+            // Restore NCHW layout and accumulate gradients.
+            parent->grad_ += af::reorder(input_grad, 3, 2, 1, 0);
+        });
+}
+
 namespace {
 
 af::array insert_dim(const af::array& in, int dim) {
