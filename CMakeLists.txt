@@ -49,6 +49,7 @@ add_library(neuro
     src/Trainer.cpp
     src/nn/Conv2D.cpp
     src/data/CIFAR10Dataset.cpp
+    src/viz/SvgDocument.cpp
 )
 
 add_library(Neuro::Neuro ALIAS neuro)
