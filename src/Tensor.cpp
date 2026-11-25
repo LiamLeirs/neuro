@@ -294,6 +294,37 @@ Tensor Tensor::reshape(const af::dim4& dims) const {
     });
 };
 
+Tensor Tensor::reorder(int d0, int d1, int d2, int d3) const {
+    const std::array<int, 4> perm = {d0, d1, d2, d3};
+    std::array<int, 4> inversePerm{};
+    std::array<bool, 4> seen{};
+
+    for (int i = 0; i < 4; ++i) {
+        const int dim = perm[i];
+
+        if (dim < 0 || dim > 3) {
+            throw std::invalid_argument("Dimensions must be between 0 and 3");
+        }
+
+        if (seen[dim]) {
+            throw std::invalid_argument("Dimensions must form a valid permutation");
+        }
+
+        seen[dim] = true;
+        inversePerm[dim] = i;
+    }
+
+    auto parent = impl_;
+    af::array result = af::reorder(parent->data_, d0, d1, d2, d3);
+
+    return makeResult(result, {parent}, [parent, inversePerm](const af::array& grad) {
+        if (parent->requires_grad_) {
+            parent->grad_ +=
+                af::reorder(grad, inversePerm[0], inversePerm[1], inversePerm[2], inversePerm[3]);
+        }
+    });
+}
+
 Tensor Tensor::matmul(const Tensor& other) const {
     auto left = impl_;
     auto right = other.impl_;
