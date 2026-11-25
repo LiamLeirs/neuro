@@ -11,7 +11,9 @@
 #include <af/dim4.hpp>
 #include <af/gfor.h>
 #include <af/index.h>
+#include <af/ml.h>
 #include <af/seq.h>
+#include <af/signal.h>
 #include <af/statistics.h>
 #include <af/util.h>
 #include <cmath>
@@ -397,6 +399,81 @@ Tensor Tensor::indexSelect(const std::vector<int>& indices) const {
     });
 };
 
+Tensor Tensor::conv2d(const Tensor& weights, int stride, int padding, int dilation) const {
+    // Validate convolution parameters.
+    if (data().isempty() || weights.data().isempty()) {
+        throw std::invalid_argument("Input and weights must not be empty");
+    }
+    if (stride < 1) {
+        throw std::invalid_argument("Stride must be positive");
+    }
+    if (padding < 0) {
+        throw std::invalid_argument("Padding must be non-negative");
+    }
+    if (dilation < 1) {
+        throw std::invalid_argument("Dilation must be positive");
+    }
+
+    const auto input_shape = shape();
+    const auto weight_shape = weights.shape();
+
+    if (input_shape[1] != weight_shape[1]) {
+        throw std::invalid_argument("Input and weight channel counts must match");
+    }
+
+    const auto effective_height = dilation * (weight_shape[2] - 1) + 1;
+    const auto effective_width = dilation * (weight_shape[3] - 1) + 1;
+
+    if (effective_height > input_shape[2] + 2LL * padding ||
+        effective_width > input_shape[3] + 2LL * padding) {
+        throw std::invalid_argument("Effective kernel exceeds padded input dimensions");
+    }
+
+    const af::dim4 stride_dims(stride, stride);
+    const af::dim4 padding_dims(padding, padding);
+    const af::dim4 dilation_dims(dilation, dilation);
+
+    auto input_parent = impl_;
+    auto weight_parent = weights.impl_;
+
+    // Convert Neuro's NCHW layout to ArrayFire's WHCN layout.
+    const af::array input = af::reorder(data(), 3, 2, 1, 0);
+    af::array filters = af::reorder(weights.data(), 3, 2, 1, 0);
+
+    // Reverse the spatial kernel dimensions to obtain cross-correlation.
+    filters = af::flip(af::flip(filters, 0), 1);
+
+    const af::array result =
+        af::convolve2NN(input, filters, stride_dims, padding_dims, dilation_dims);
+
+    const af::array output = af::reorder(result, 3, 2, 1, 0);
+
+    return makeResult(output, {input_parent, weight_parent},
+                      [input_parent, weight_parent, input, filters, result, stride_dims,
+                       padding_dims, dilation_dims](const af::array& grad) {
+                          const af::array reordered_grad = af::reorder(grad, 3, 2, 1, 0);
+
+                          // Propagate gradients to the input.
+                          if (input_parent->requires_grad_) {
+                              const af::array input_grad = af::convolve2GradientNN(
+                                  reordered_grad, input, filters, result, stride_dims, padding_dims,
+                                  dilation_dims, AF_CONV_GRADIENT_DATA);
+
+                              input_parent->grad_ += af::reorder(input_grad, 3, 2, 1, 0);
+                          }
+
+                          // Propagate gradients to the weights.
+                          if (weight_parent->requires_grad_) {
+                              af::array weight_grad = af::convolve2GradientNN(
+                                  reordered_grad, input, filters, result, stride_dims, padding_dims,
+                                  dilation_dims, AF_CONV_GRADIENT_FILTER);
+
+                              // Undo the forward kernel reversal and layout conversion.
+                              weight_grad = af::flip(af::flip(weight_grad, 0), 1);
+                              weight_parent->grad_ += af::reorder(weight_grad, 3, 2, 1, 0);
+                          }
+                      });
+}
 namespace {
 
 af::array insert_dim(const af::array& in, int dim) {

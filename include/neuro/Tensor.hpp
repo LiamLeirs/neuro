@@ -57,6 +57,8 @@ public:
     Tensor slice(int start, int end) const;
     Tensor indexSelect(const std::vector<int>& indices) const;
 
+    Tensor conv2d(const Tensor& weights, int stride = 1, int padding = 0, int dilation = 1) const;
+
     Tensor relu() const;
     Tensor sigmoid() const;
     Tensor tanh() const;
