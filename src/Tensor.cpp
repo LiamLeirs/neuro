@@ -325,6 +325,15 @@ Tensor Tensor::reorder(int d0, int d1, int d2, int d3) const {
     });
 }
 
+Tensor Tensor::flatten() const {
+    const auto dims = shape();
+
+    const auto batch_size = dims[0];
+    const auto feature_length = dims[1] * dims[2] * dims[3];
+
+    return reshape(af::dim4(batch_size, feature_length));
+}
+
 Tensor Tensor::matmul(const Tensor& other) const {
     auto left = impl_;
     auto right = other.impl_;
