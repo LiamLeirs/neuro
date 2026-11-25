@@ -19,6 +19,7 @@ add_executable(neuro_tests
     test_accuracy.cpp
     test_mean.cpp
     test_trainer.cpp
+    test_reshape.cpp
 )
 
 target_link_libraries(neuro_tests

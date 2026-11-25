@@ -275,6 +275,25 @@ Tensor operator/(double scalar, const Tensor& t) {
 
 // ==================== Matrix Operations ====================
 
+Tensor Tensor::reshape(const af::dim4& dims) const {
+    if (dims.elements() != impl_->data_.elements()) {
+        throw std::invalid_argument("Cannot reshape tensor: element counts do not match");
+    }
+    for (int i = 0; i < 4; ++i) {
+        if (dims[i] <= 0) {
+            throw std::invalid_argument("Reshape dimensions must be positive");
+        }
+    }
+    af::dim4 original_shape = impl_->data_.dims();
+    auto parent = impl_;
+    af::array result = af::moddims(parent->data_, dims);
+    return makeResult(result, {parent}, [parent, original_shape](const af::array& grad) {
+        if (parent->requires_grad_) {
+            parent->grad_ += af::moddims(grad, original_shape);
+        }
+    });
+};
+
 Tensor Tensor::matmul(const Tensor& other) const {
     auto left = impl_;
     auto right = other.impl_;

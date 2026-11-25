@@ -36,6 +36,7 @@ public:
     Tensor operator/(double scalar) const;
     Tensor operator[](int index) const;
 
+    Tensor reshape(const af::dim4& dims) const;
     Tensor matmul(const Tensor& other) const;
     Tensor sum(int dim) const;
     Tensor sum() const;
