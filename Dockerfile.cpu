@@ -8,15 +8,16 @@ RUN apt-get update && apt-get install -y \
     wget \
     ca-certificates \
     gzip \
+    tar \
     && rm -rf /var/lib/apt/lists/*
 
 # Install ArrayFire
 RUN wget -nv -O /tmp/arrayfire.sh \
     "https://arrayfire.gateway.scarf.sh/linux/3.10.0/ArrayFire.sh" \
     && bash /tmp/arrayfire.sh \
-        --skip-license \
-        --prefix=/opt \
-        --include-subdir \
+    --skip-license \
+    --prefix=/opt \
+    --include-subdir \
     && rm /tmp/arrayfire.sh
 
 ENV CMAKE_PREFIX_PATH=/opt/ArrayFire-3.10.0-Linux
@@ -34,6 +35,14 @@ RUN mkdir -p data/mnist && cd data/mnist \
     && mv train-labels-idx1-ubyte train-labels.idx1-ubyte \
     && mv t10k-images-idx3-ubyte t10k-images.idx3-ubyte \
     && mv t10k-labels-idx1-ubyte t10k-labels.idx1-ubyte
+
+# Download CIFAR-10 test data
+RUN mkdir -p data/cifar10 \
+    && wget -nv -O /tmp/cifar-10-binary.tar.gz \
+    https://www.cs.toronto.edu/~kriz/cifar-10-binary.tar.gz \
+    && tar -xzf /tmp/cifar-10-binary.tar.gz \
+    -C data/cifar10 --strip-components=1 \
+    && rm /tmp/cifar-10-binary.tar.gz
 
 COPY . .
 

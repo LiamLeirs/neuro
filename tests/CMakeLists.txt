@@ -27,6 +27,7 @@ add_executable(neuro_tests
     test_maxpool2d.cpp
     test_avgpool2d.cpp
     test_global_avgpool2d.cpp
+    test_cifar10.cpp
 )
 
 target_link_libraries(neuro_tests
