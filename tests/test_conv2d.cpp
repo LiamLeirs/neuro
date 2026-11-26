@@ -137,7 +137,7 @@ double evaluateConv2dLoss(const std::vector<float>& input_values, const af::dim4
 
 void expectConv2dGradients(const af::dim4& input_shape, const af::dim4& weight_shape,
                            int stride = 1, int padding = 0, int dilation = 1) {
-    constexpr float epsilon = 1e-3f;
+    constexpr float epsilon = 1e-2f;
     constexpr double tolerance = 2e-3;
 
     Tensor input(makeTensor(input_shape).data(), true);

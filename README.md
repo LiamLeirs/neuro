@@ -5,6 +5,7 @@
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-blue)
 
 ![CUDA](https://img.shields.io/badge/CUDA-enabled-76B900)
+
 ![CPU](https://img.shields.io/badge/CPU-enabled-blue)
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
@@ -19,16 +20,17 @@ Neuro is currently in early development and targets Linux systems with either a 
 
 ## Features
 
-- **GPU-accelerated tensors** — Tensor arithmetic, broadcasting, matrix multiplication, reductions and indexing powered by ArrayFire.
+- **GPU-accelerated tensors** — Tensor arithmetic, broadcasting, matrix multiplication, reductions, indexing, reshaping and dimension reordering powered by ArrayFire.
 - **Configurable backend** — CUDA acceleration by default, with CPU support selected at build time.
 - **Automatic differentiation** — Dynamic computational graphs, reverse-mode gradient propagation and gradient tracking control.
-- **Neural networks** — Fully connected layers, activation functions and composable sequential models.
+- **Neural networks** — Fully connected and convolutional layers, pooling, flattening, activation functions and composable sequential models.
 - **Optimizers** — Stochastic Gradient Descent (SGD) and Adam.
 - **Loss functions** — Mean Squared Error (MSE), Mean Absolute Error (MAE) and Cross-Entropy Loss.
-- **Data utilities** — Dataset abstractions, batched data loading, shuffling and optimized MNIST data loading.
+- **Data utilities** — Dataset abstractions, batched data loading, shuffling and optimized MNIST and CIFAR-10 data loading.
 - **Training utilities** — Reusable training and evaluation loops, extensible metrics and training history.
+- **Visualization** — Custom SVG plotting with automatic ticks, grid lines, legends, training history integration and Linux display support.
 - **CMake integration** — Installable CMake package with support for `find_package(Neuro)`.
-- **Unit testing** — 387 tests passing locally on both CPU and CUDA, covering tensor operations, automatic differentiation, neural network components and training utilities.
+- **Unit testing** — GoogleTest coverage of tensor operations, automatic differentiation, neural network components, datasets, training utilities and visualization.
 
 ## Quick Start
 
@@ -100,6 +102,30 @@ int main() {
 
 The example trains a small multilayer perceptron to learn the XOR function. Gradient computation, parameter updates and loss tracking are handled automatically by the Trainer.
 
+### Visualizing Training History
+
+The plotting API accepts training history directly or arbitrary numerical series. It renders SVG files without an additional plotting dependency.
+
+```cpp
+#include <neuro/viz/Plot.hpp>
+
+// After constructing a trainer and data loader:
+auto history = trainer.fit(loader, 10);
+
+neuro::viz::Plot plot;
+plot.addSeries(history, "loss")
+    .title("Training Loss")
+    .xlabel("Epoch")
+    .ylabel("Loss");
+
+plot.save("loss.svg");
+plot.show();
+```
+
+Multiple series can be added to the same plot. Use `clear()` to reset the series and labels before creating another plot. `save()` and `show()` do not modify the plot.
+
+`show()` requires Linux, `xdg-open` and a graphical environment with an SVG-capable default application. It may block depending on the viewer. Successful calls retain a temporary SVG in `/tmp` so the viewer can access it. SVG export does not require a graphical environment.
+
 ## Requirements
 
 Neuro currently targets Linux and supports ArrayFire's CUDA and CPU backends.
@@ -161,9 +187,9 @@ By default, only the Neuro library is built. Examples and unit tests can be enab
 To build Neuro with both enabled:
 
 ```bash
-cmake -S . -B build \\
-    -DCMAKE_BUILD_TYPE=Release \\
-    -DNEURO_BUILD_EXAMPLES=ON \\
+cmake -S . -B build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DNEURO_BUILD_EXAMPLES=ON \
     -DNEURO_BUILD_TESTS=ON
 cmake --build build -j
 ```
@@ -184,8 +210,8 @@ The public API is identical for both backends. The backend is selected at config
 If CMake cannot locate ArrayFire automatically, specify its installation prefix:
 
 ```bash
-cmake -S . -B build \\
-    -DCMAKE_BUILD_TYPE=Release \\
+cmake -S . -B build \
+    -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_PREFIX_PATH=/path/to/arrayfire
 ```
 
@@ -214,7 +240,7 @@ Once Neuro is installed, it can be integrated into any CMake-based C++ project u
 ```cmake
 cmake_minimum_required(VERSION 3.24)
 project(my_project LANGUAGES CXX)
-find_package(Neuro 0.1 CONFIG REQUIRED)
+find_package(Neuro 0.2 CONFIG REQUIRED)
 add_executable(my_app main.cpp)
 target_link_libraries(my_app PRIVATE Neuro::Neuro)
 ```
@@ -268,15 +294,17 @@ Neuro includes several example applications demonstrating its tensor, automatic 
 |---------|-------------|
 | Linear Regression | Learn a linear relationship using gradient-based optimization. |
 | XOR Classification | Train a multilayer perceptron to learn a non-linear function. |
-| MNIST Classification | Train and evaluate a neural network on handwritten digit recognition. |
+| MNIST Classification | Train and evaluate a multilayer perceptron on handwritten digits. |
+| MNIST CNN | Train a convolutional network on handwritten digits. |
+| CIFAR-10 CNN | Train a convolutional network on color images and export training curves. |
 
 ### Running the Examples
 
 Build Neuro with examples enabled:
 
 ```bash
-cmake -S . -B build \\
-    -DCMAKE_BUILD_TYPE=Release \\
+cmake -S . -B build \
+    -DCMAKE_BUILD_TYPE=Release \
     -DNEURO_BUILD_EXAMPLES=ON
 cmake --build build -j
 ```
@@ -287,6 +315,8 @@ Run the examples from the repository root:
 ./build/examples/neuro_linear_regression
 ./build/examples/neuro_xor
 ./build/examples/neuro_mnist
+./build/examples/neuro_cnn
+./build/examples/neuro_cifar10
 ```
 
 ### MNIST Classification
@@ -339,6 +369,47 @@ data/mnist/
 
 Run the MNIST example from the repository root to ensure the dataset files can be located.
 
+### Convolutional Neural Networks
+
+Neuro supports differentiable convolution and pooling operations, NCHW image batches and convolutional modules. The MNIST dataset supports both flattened and image layouts.
+
+The CIFAR-10 example uses three convolutional blocks with ReLU and max pooling, followed by flattening and two fully connected layers. It trains using Adam and Cross-Entropy Loss and exports training loss and accuracy as SVG files.
+
+#### Example Results
+
+| Dataset | Model | Test accuracy | Test loss |
+|---------|-------|--------------:|----------:|
+| MNIST | MLP | 97.57% | 0.0815 |
+| MNIST | CNN | 98.82% | 0.0351 |
+| CIFAR-10 | CNN | 73.24% | 1.3498 |
+
+These are results from individual local training runs, not formal performance benchmarks. Results may vary between runs.
+
+#### CIFAR-10 Training Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Training samples | 50,000 |
+| Test samples | 10,000 |
+| Trainable parameters | 356,810 |
+| Optimizer | Adam |
+| Learning rate | 0.001 |
+| Batch size | 128 |
+| Epochs | 20 |
+| Loss function | Cross-Entropy Loss |
+
+#### CIFAR-10 Dataset Setup
+
+Download the binary version of CIFAR-10 and extract it from the repository root:
+
+```bash
+mkdir -p data/cifar10
+wget https://www.cs.toronto.edu/~kriz/cifar-10-binary.tar.gz -O /tmp/cifar-10-binary.tar.gz
+tar -xzf /tmp/cifar-10-binary.tar.gz -C data/cifar10 --strip-components=1
+```
+
+The directory should contain `data_batch_1.bin` through `data_batch_5.bin` and `test_batch.bin`.
+
 ## Testing
 
 Neuro includes a comprehensive unit test suite built with GoogleTest. The tests cover:
@@ -350,6 +421,8 @@ Neuro includes a comprehensive unit test suite built with GoogleTest. The tests 
 - Loss functions and optimizers
 - Datasets and data loading
 - Metrics and training utilities
+- Convolution, pooling and image layouts
+- SVG serialization, plotting and display error handling
 - Input validation and error handling
 
 ### Building and Running Tests
@@ -357,8 +430,8 @@ Neuro includes a comprehensive unit test suite built with GoogleTest. The tests 
 Enable unit tests during CMake configuration:
 
 ```bash
-cmake -S . -B build \\
-    -DCMAKE_BUILD_TYPE=Release \\
+cmake -S . -B build \
+    -DCMAKE_BUILD_TYPE=Release \
     -DNEURO_BUILD_TESTS=ON
 cmake --build build -j
 ```
@@ -379,11 +452,9 @@ ctest --test-dir build -R TrainerTest --output-on-failure
 
 ### Test Status
 
-As of v0.1.0, all 387 unit tests pass in Release mode.
+The full test suite requires both the MNIST and CIFAR-10 datasets described above. CPU testing does not require a GPU, and visualization unit tests do not require a graphical environment.
 
-All 387 tests have passed locally on both CPU and CUDA in Release mode. CPU testing does not require a GPU.
-
-The full test suite requires the MNIST files described in [Dataset Setup](#dataset-setup). To run the tests on CPU:
+To run the tests on CPU:
 
 ```bash
 cmake -S . -B build/cpu -DNEURO_BACKEND=CPU -DNEURO_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
@@ -393,7 +464,7 @@ ctest --test-dir build/cpu --output-on-failure --no-tests=error
 
 ### Continuous Integration
 
-The GitHub Actions workflow is configured to compile the CUDA backend and build and execute the CPU test suite. The CPU Dockerfile downloads the required MNIST files automatically. CUDA runtime tests are performed locally.
+The GitHub Actions workflow is configured to compile the CUDA backend and build and execute the CPU test suite. The CPU Dockerfile downloads the required MNIST and CIFAR-10 files automatically. CUDA runtime tests are performed locally.
 
 ## Current Limitations
 
@@ -402,10 +473,11 @@ Neuro is an early-stage deep learning library and is not intended to replace est
 The current release has the following limitations:
 
 - **Platform support** — Currently developed and tested on Linux with CPU and NVIDIA CUDA backends.
-- **Neural network architectures** — Limited to fully connected networks. Convolutional, recurrent and attention-based layers are not yet supported.
+- **Neural network architectures** — Fully connected and convolutional networks are supported. Recurrent and attention-based layers are not yet supported.
 - **GPU computation** — GPU operations rely on ArrayFire rather than custom CUDA kernels.
 - **Model persistence** — Model serialization and training checkpointing are not yet supported.
 - **Training features** — Advanced features such as learning rate scheduling, dropout and batch normalization are not yet implemented.
+- **Visualization** — SVG line plots and Linux display are supported; native tensor image and feature map visualization are not yet implemented.
 - **Performance** — No formal performance benchmarks against established deep learning frameworks have been conducted.
 - **API stability** — The public API is experimental and may change between minor releases.
 
@@ -415,8 +487,8 @@ Neuro is under active development, with future releases focusing on expanding ne
 
 ### Neural Network Components
 
-- [ ] Convolutional layers
-- [ ] Pooling layers
+- [x] Convolutional layers
+- [x] Pooling layers
 - [ ] Dropout
 - [ ] Batch normalization
 - [ ] Additional activation and loss functions
@@ -425,6 +497,9 @@ Neuro is under active development, with future releases focusing on expanding ne
 
 ### Training and Optimization
 
+- [ ] Training and evaluation modes
+- [ ] Per-epoch validation
+- [ ] Dataset transforms and augmentation
 - [ ] Learning rate schedulers
 - [ ] Model serialization
 - [ ] Training checkpoints
@@ -439,6 +514,12 @@ Neuro is under active development, with future releases focusing on expanding ne
 - [ ] Reduced CPU-GPU synchronization
 - [ ] Performance profiling and benchmarking
 
+### Visualization
+
+- [x] SVG plotting and training history integration
+- [ ] Image and feature map visualization
+- [ ] Model inspection and activation visualization
+
 ### Developer Experience
 
 - [ ] Comprehensive API documentation
@@ -446,9 +527,7 @@ Neuro is under active development, with future releases focusing on expanding ne
 - [ ] Additional examples and tutorials
 - [ ] Extended platform support
 
-The next major development milestone is support for convolutional
-
-neural networks (CNNs).
+The next major development milestone is improved training and generalization, including dropout, batch normalization, validation history and learning rate scheduling.
 
 ## License
 

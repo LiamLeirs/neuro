@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(neuro LANGUAGES CXX VERSION 0.1.0)
+project(neuro LANGUAGES CXX VERSION 0.2.0)
 
 # Configuration
 set(NEURO_BACKEND "CUDA" CACHE STRING "ArrayFire backend (CUDA or CPU)")

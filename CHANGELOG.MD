@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-26
+
+Convolutional neural networks and basic visualization.
+
+### Added
+
+- Differentiable tensor reshaping, dimension reordering and flattening.
+- Differentiable 2D convolution, max pooling, average pooling and global average pooling.
+- Conv2D, MaxPool2D, AvgPool2D, GlobalAvgPool2D and Flatten neural network modules.
+- MNIST image layouts for convolutional networks, alongside the existing flattened layout.
+- CIFAR10Dataset with optimized NCHW batch loading.
+- MNIST CNN and CIFAR-10 CNN examples.
+- Custom SVG document renderer with drawing primitives and rotated text.
+- Line plotting with automatic axis scaling, ticks, grid lines, colors, titles, axis labels and legends.
+- Direct plotting of TrainingHistory metrics and arbitrary numerical series.
+- SVG export, plot reset and Linux display through xdg-open.
+- Unit tests for convolution, pooling, tensor shape operations, image datasets and visualization.
+- Automatic CIFAR-10 dataset setup in the CPU Docker environment.
+
+### Changed
+
+- Extended example applications and documentation to cover convolutional networks and visualization.
+
 ## [0.1.0] - 2026-11-25
 
 Initial public release of Neuro.
