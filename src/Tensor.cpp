@@ -216,6 +216,22 @@ Tensor Tensor::exp() const {
     });
 };
 
+Tensor Tensor::sqrt() const {
+    if (data().elements() == 0) {
+        throw std::invalid_argument("Tensor is empty");
+    }
+    auto parent = impl_;
+    af::dtype type = parent->data_.type();
+    if (type != f32 && type != f64) {
+        throw std::invalid_argument("Sqrt only supports floating point tensors");
+    }
+    af::array result = af::sqrt(parent->data_);
+    return makeResult(result, {parent}, [parent, result](const af::array& grad) {
+        if (parent->requires_grad_)
+            parent->grad_ += grad / (2 * result);
+    });
+}
+
 Tensor Tensor::log() const {
     auto parent = impl_;
     return makeResult(af::log(parent->data_), {parent}, [parent](const af::array& grad) {
@@ -823,6 +839,33 @@ Tensor Tensor::mean(int dim) const {
         parent->grad_ += af::tile(grad / parent->data_.dims(dim), repeats);
     });
 };
+
+Tensor Tensor::var() const {
+    if (data().elements() == 0) {
+        throw std::invalid_argument("Tensor is empty");
+    }
+    af::dtype type = impl_->data_.type();
+    if (type != f32 && type != f64) {
+        throw std::invalid_argument("Var only supports floating point type");
+    }
+    Tensor diff = *this - mean();
+    return (diff * diff).mean();
+}
+
+Tensor Tensor::var(int dim) const {
+    if (dim < 0 || dim >= 4) {
+        throw std::out_of_range("Tensor dimension must be between 0 and 3");
+    }
+    if (data().elements() == 0) {
+        throw std::invalid_argument("Tensor is empty");
+    }
+    af::dtype type = impl_->data_.type();
+    if (type != f32 && type != f64) {
+        throw std::invalid_argument("Var only supports floating point type");
+    }
+    Tensor diff = *this - mean(dim);
+    return (diff * diff).mean(dim);
+}
 
 Tensor Tensor::max(int dim) const {
     if (dim < 0 || dim >= 4) {

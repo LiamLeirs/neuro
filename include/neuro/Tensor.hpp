@@ -56,6 +56,9 @@ public:
     Tensor transpose() const;
     Tensor slice(int start, int end) const;
     Tensor indexSelect(const std::vector<int>& indices) const;
+    Tensor var() const;
+    Tensor var(int dim) const;
+    Tensor sqrt() const;
 
     Tensor conv2d(const Tensor& weights, int stride = 1, int padding = 0, int dilation = 1) const;
     Tensor maxpool2d(int window_size, int stride = 1, int padding = 1) const;

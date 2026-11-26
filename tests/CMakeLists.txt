@@ -32,6 +32,7 @@ add_executable(neuro_tests
     test_plot.cpp
     test_module_mode.cpp
     test_dropout.cpp
+    test_variance_sqrt.cpp
 )
 
 target_link_libraries(neuro_tests
