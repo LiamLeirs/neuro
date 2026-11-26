@@ -68,6 +68,7 @@ public:
     Tensor leakyRelu(float negativeSlope = 0.01f) const;
     Tensor softmax(int dim) const;
     Tensor logSoftmax(int dim) const;
+    Tensor dropout(double p = 0.5) const;
 
     void backward();
     void zeroGrad();

@@ -31,6 +31,7 @@ add_executable(neuro_tests
     test_svg_document.cpp
     test_plot.cpp
     test_module_mode.cpp
+    test_dropout.cpp
 )
 
 target_link_libraries(neuro_tests

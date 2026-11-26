@@ -13,6 +13,7 @@
 #include <af/image.h>
 #include <af/index.h>
 #include <af/ml.h>
+#include <af/random.h>
 #include <af/seq.h>
 #include <af/signal.h>
 #include <af/statistics.h>
@@ -1068,5 +1069,30 @@ Tensor Tensor::logSoftmax(int dim) const {
     Tensor normalizer = exponentials.sum(dim);
     return shifted - normalizer.log();
 };
+
+// ==================== Regularization ====================
+
+Tensor Tensor::dropout(double p) const {
+    if (!std::isfinite(p) || p < 0 || p > 1) {
+        throw std::invalid_argument("Dropout probability must be between 0 and 1");
+    }
+    af::dtype type = impl_->data_.type();
+    if (type != f32 && type != f64) {
+        throw std::invalid_argument("Dropout only supports floating point tensors");
+    }
+    if (data().elements() == 0) {
+        throw std::invalid_argument("Tensor is empty");
+    }
+    if (p == 0)
+        return *this;
+
+    if (p == 1) {
+        return *this * 0.0;
+    }
+
+    af::array rand = af::randu(shape(), type);
+    Tensor mask((rand >= p).as(type), false);
+    return (*this * mask) * (1.0 / (1.0 - p));
+}
 
 } // namespace neuro
