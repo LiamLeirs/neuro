@@ -1,3 +1,4 @@
+#include "neuro/Trainer.hpp"
 #include "neuro/viz/Plot.hpp"
 
 #include <filesystem>
@@ -9,6 +10,7 @@
 #include <string>
 #include <vector>
 
+using neuro::TrainingHistory;
 using neuro::viz::Plot;
 
 namespace {
@@ -282,4 +284,131 @@ TEST(PlotTest, SavesSvgDocument) {
     std::filesystem::remove(path);
 
     EXPECT_EQ(content, plot.str());
+}
+
+TEST(PlotTest, AddsSeriesFromTrainingHistory) {
+    const TrainingHistory history{{{"loss", 1.5}, {"accuracy", 0.5}},
+                                  {{"loss", 0.9}, {"accuracy", 0.7}},
+                                  {{"loss", 0.4}, {"accuracy", 0.9}}};
+
+    Plot plot;
+    plot.addSeries(history, "loss");
+
+    const std::vector<double> epochs{1, 2, 3};
+    const std::vector<double> losses{1.5, 0.9, 0.4};
+
+    Plot reference;
+    reference.addSeries(epochs, losses, "loss");
+
+    EXPECT_EQ(plot.str(), reference.str());
+}
+
+TEST(PlotTest, HistorySupportsCustomLabelAndColor) {
+    const TrainingHistory history{{{"accuracy", 0.5}}, {{"accuracy", 0.8}}};
+
+    Plot plot;
+    plot.addSeries(history, "accuracy", "Training Accuracy", "#123456");
+
+    const auto svg = plot.str();
+
+    EXPECT_TRUE(contains(svg, ">Training Accuracy</text>"));
+    EXPECT_TRUE(contains(svg, "stroke=\"#123456\""));
+    EXPECT_FALSE(contains(svg, ">accuracy</text>"));
+}
+
+TEST(PlotTest, RejectsEmptyTrainingHistory) {
+    Plot plot;
+    const TrainingHistory history;
+
+    EXPECT_THROW(plot.addSeries(history, "loss"), std::invalid_argument);
+}
+
+TEST(PlotTest, RejectsMissingHistoryMetric) {
+    const TrainingHistory history{{{"loss", 1.5}}, {{"accuracy", 0.8}}, {{"loss", 0.4}}};
+
+    Plot plot;
+    plot.addSeries(x, y);
+
+    const auto before = plot.str();
+
+    EXPECT_THROW(plot.addSeries(history, "loss"), std::invalid_argument);
+
+    EXPECT_EQ(plot.str(), before);
+}
+
+TEST(PlotTest, RejectsNonFiniteHistoryValues) {
+    Plot plot;
+
+    for (double invalid :
+         {std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity(),
+          std::numeric_limits<double>::quiet_NaN()}) {
+        const TrainingHistory history{{{"loss", 1.5}}, {{"loss", invalid}}};
+
+        EXPECT_THROW(plot.addSeries(history, "loss"), std::invalid_argument);
+    }
+}
+
+TEST(PlotTest, SupportsSingleEpochHistory) {
+    const TrainingHistory history{{{"loss", 0.5}}};
+
+    Plot plot;
+    plot.addSeries(history, "loss");
+
+    const auto svg = plot.str();
+
+    EXPECT_TRUE(contains(svg, "<circle"));
+    EXPECT_FALSE(contains(svg, "<polyline"));
+}
+
+TEST(PlotTest, CombinesHistoryAndNumericalSeries) {
+    const TrainingHistory history{{{"loss", 3.0}}, {{"loss", 2.0}}, {{"loss", 1.0}}};
+
+    Plot plot;
+    plot.addSeries(history, "loss").addSeries(x, y, "Reference");
+
+    Plot reference;
+    reference.addSeries(x, y, "loss").addSeries(x, y, "Reference");
+
+    EXPECT_EQ(plot.str(), reference.str());
+}
+
+TEST(PlotTest, ClearRemovesAllSeries) {
+    Plot plot;
+
+    plot.addSeries(x, y).addSeries(x, y);
+
+    plot.clear();
+
+    EXPECT_THROW(plot.str(), std::logic_error);
+}
+
+TEST(PlotTest, ClearRestoresDefaultState) {
+    Plot plot;
+
+    plot.addSeries(x, y, "Original Series")
+        .addSeries(x, y, "Second Series")
+        .title("Original Title")
+        .xlabel("Original X")
+        .ylabel("Original Y");
+
+    plot.clear().addSeries(x, y);
+
+    Plot reference;
+    reference.addSeries(x, y);
+
+    EXPECT_EQ(plot.str(), reference.str());
+}
+
+TEST(PlotTest, ClearEmptyPlotIsSafe) {
+    Plot plot;
+
+    EXPECT_NO_THROW(plot.clear());
+    EXPECT_NO_THROW(plot.clear());
+
+    plot.addSeries(x, y);
+
+    Plot reference;
+    reference.addSeries(x, y);
+
+    EXPECT_EQ(plot.str(), reference.str());
 }

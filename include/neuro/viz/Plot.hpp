@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include "neuro/Trainer.hpp"
 #include "neuro/viz/SvgDocument.hpp"
 
 #include <vector>
@@ -10,10 +11,13 @@ public:
     Plot& addSeries(std::span<const double> x, std::span<const double> y,
                     const std::string& label = "", const std::string& color = "");
 
+    Plot& addSeries(const TrainingHistory& history, const std::string& metric,
+                    const std::string& label = "", const std::string& color = "");
+
     std::string str(int width = 800, int height = 600) const;
 
     void save(const std::string& filename, int width = 800, int height = 600) const;
-
+    Plot& clear();
     Plot& title(const std::string& title);
     Plot& xlabel(const std::string& label);
     Plot& ylabel(const std::string& label);

@@ -1,5 +1,6 @@
 #include "neuro/viz/Plot.hpp"
 
+#include "neuro/Trainer.hpp"
 #include "neuro/viz/SvgDocument.hpp"
 
 #include <algorithm>
@@ -7,6 +8,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <format>
+#include <numeric>
 #include <stdexcept>
 #include <string_view>
 #include <vector>
@@ -48,6 +50,31 @@ Plot& Plot::addSeries(std::span<const double> x, std::span<const double> y,
     }
     series_.push_back(std::move(series));
     return *this;
+}
+
+Plot& Plot::addSeries(const TrainingHistory& history, const std::string& metric,
+                      const std::string& label, const std::string& color) {
+    if (history.empty()) {
+        throw std::invalid_argument("Training history is empty");
+    }
+
+    std::vector<double> epochs(history.size());
+    std::iota(epochs.begin(), epochs.end(), 1.0);
+
+    std::vector<double> values;
+    values.reserve(history.size());
+
+    for (const auto& results : history) {
+        const auto it = results.find(metric);
+
+        if (it == results.end()) {
+            throw std::invalid_argument("Metric not found: " + metric);
+        }
+
+        values.push_back(it->second);
+    }
+
+    return addSeries(epochs, values, label.empty() ? metric : label, color);
 }
 
 Plot::Bounds Plot::computeBounds() const {
@@ -340,5 +367,13 @@ void Plot::drawLegend(SvgDocument& document, const PlotArea& area) const {
 
         row_y += row_height;
     }
+}
+
+Plot& Plot::clear() {
+    series_ = {};
+    title_ = "";
+    xlabel_ = "";
+    ylabel_ = "";
+    return *this;
 }
 } // namespace neuro::viz

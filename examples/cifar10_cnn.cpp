@@ -11,6 +11,7 @@
 #include "neuro/nn/Sequential.hpp"
 #include "neuro/nn/loss/CrossEntropyLoss.hpp"
 #include "neuro/optim/Adam.hpp"
+#include "neuro/viz/Plot.hpp"
 
 #include <cstddef>
 #include <iostream>
@@ -49,8 +50,27 @@ int main() {
 
     auto results = trainer.evaluate(test_loader);
 
-    std::cout << "\nFinal Test Loss: " << results.at("loss") << '\n';
-    std::cout << "Final Test Accuracy: " << results.at("accuracy") * 100.0 << "%\n";
+    neuro::viz::Plot plot;
+
+    plot.addSeries(history, "loss")
+        .title("CIFAR-10 Training Loss")
+        .xlabel("Epoch")
+        .ylabel("Loss")
+        .save("cifar10_loss.svg");
+
+    plot.clear()
+        .addSeries(history, "accuracy")
+        .title("CIFAR-10 Training Accuracy")
+        .xlabel("Epoch")
+        .ylabel("Accuracy")
+        .save("cifar10_accuracy.svg");
+
+    std::cout << "\nTraining plots saved:\n"
+              << "  cifar10_loss.svg\n"
+              << "  cifar10_accuracy.svg\n";
+
+    std::cout << "\nTest loss: " << results.at("loss") << '\n';
+    std::cout << "Test accuracy: " << results.at("accuracy") * 100.0 << "%\n";
 
     return 0;
 }
