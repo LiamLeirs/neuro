@@ -3,19 +3,22 @@
 #include "neuro/Trainer.hpp"
 #include "neuro/viz/SvgDocument.hpp"
 
-#include <algorithm>
+#ifdef __linux__
 #include <cerrno>
+#include <spawn.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <format>
 #include <numeric>
-#include <spawn.h>
 #include <stdexcept>
 #include <string_view>
-#include <sys/wait.h>
 #include <system_error>
-#include <unistd.h>
 #include <vector>
 
 namespace {
@@ -31,6 +34,7 @@ constexpr std::array<std::string_view, 8> default_colors{
     "#db2777"  // Pink
 };
 
+#ifdef __linux__
 void openFile(const std::string& filename) {
     pid_t pid;
 
@@ -60,6 +64,7 @@ void openFile(const std::string& filename) {
         throw std::runtime_error("xdg-open failed");
     }
 }
+#endif
 
 } // namespace
 
@@ -413,6 +418,7 @@ Plot& Plot::clear() {
 }
 
 void Plot::show(int width, int height) const {
+#ifdef __linux__
     char filename[] = "/tmp/neuro_XXXXXX.svg";
     int fd = mkstemps(filename, 4);
 
@@ -429,5 +435,8 @@ void Plot::show(int width, int height) const {
         unlink(filename);
         throw;
     }
+#else
+    throw std::runtime_error("Plot::show() is currently only supported on Linux");
+#endif
 }
 } // namespace neuro::viz

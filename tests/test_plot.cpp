@@ -412,3 +412,29 @@ TEST(PlotTest, ClearEmptyPlotIsSafe) {
 
     EXPECT_EQ(plot.str(), reference.str());
 }
+
+#ifdef __linux__
+
+TEST(PlotTest, ShowRejectsEmptyPlot) {
+    Plot plot;
+    EXPECT_THROW(plot.show(), std::logic_error);
+}
+
+TEST(PlotTest, ShowRejectsInvalidDimensions) {
+    Plot plot;
+    plot.addSeries(x, y);
+
+    EXPECT_THROW(plot.show(0, 600), std::invalid_argument);
+    EXPECT_THROW(plot.show(800, 0), std::invalid_argument);
+}
+
+#else
+
+TEST(PlotTest, ShowRejectsUnsupportedPlatform) {
+    Plot plot;
+    plot.addSeries(x, y);
+
+    EXPECT_THROW(plot.show(), std::runtime_error);
+}
+
+#endif
