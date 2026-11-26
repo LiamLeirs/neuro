@@ -4,13 +4,18 @@
 #include "neuro/viz/SvgDocument.hpp"
 
 #include <algorithm>
+#include <cerrno>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <format>
 #include <numeric>
+#include <spawn.h>
 #include <stdexcept>
 #include <string_view>
+#include <sys/wait.h>
+#include <system_error>
+#include <unistd.h>
 #include <vector>
 
 namespace {
@@ -25,6 +30,36 @@ constexpr std::array<std::string_view, 8> default_colors{
     "#ca8a04", // Gold
     "#db2777"  // Pink
 };
+
+void openFile(const std::string& filename) {
+    pid_t pid;
+
+    char executable[] = "xdg-open";
+    std::string path = filename;
+
+    char* argv[] = {executable, path.data(), nullptr};
+
+    const int result = posix_spawnp(&pid, executable, nullptr, nullptr, argv, environ);
+
+    if (result != 0) {
+        throw std::system_error(result, std::generic_category(), "Failed to launch xdg-open");
+    }
+
+    int status;
+    pid_t waited;
+
+    do {
+        waited = waitpid(pid, &status, 0);
+    } while (waited == -1 && errno == EINTR);
+
+    if (waited == -1) {
+        throw std::system_error(errno, std::generic_category(), "Failed to wait for xdg-open");
+    }
+
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        throw std::runtime_error("xdg-open failed");
+    }
+}
 
 } // namespace
 
@@ -375,5 +410,24 @@ Plot& Plot::clear() {
     xlabel_ = "";
     ylabel_ = "";
     return *this;
+}
+
+void Plot::show(int width, int height) const {
+    char filename[] = "/tmp/neuro_XXXXXX.svg";
+    int fd = mkstemps(filename, 4);
+
+    if (fd == -1) {
+        throw std::system_error(errno, std::generic_category(), "Failed creating temporary file");
+    }
+
+    close(fd);
+
+    try {
+        save(filename, width, height);
+        openFile(filename);
+    } catch (...) {
+        unlink(filename);
+        throw;
+    }
 }
 } // namespace neuro::viz

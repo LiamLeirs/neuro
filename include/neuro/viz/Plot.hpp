@@ -15,6 +15,7 @@ public:
                     const std::string& label = "", const std::string& color = "");
 
     std::string str(int width = 800, int height = 600) const;
+    void show(int width = 800, int height = 600) const;
 
     void save(const std::string& filename, int width = 800, int height = 600) const;
     Plot& clear();
