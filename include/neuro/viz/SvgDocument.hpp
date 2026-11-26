@@ -32,7 +32,8 @@ public:
                 const std::string& stroke = "none", double stroke_width = 1.0);
 
     void text(double x, double y, const std::string& content, double font_size = 12.0,
-              const std::string& fill = "black", TextAnchor anchor = TextAnchor::Start);
+              const std::string& fill = "black", TextAnchor anchor = TextAnchor::Start,
+              double rotation = 0.0);
 
 private:
     int width_;

@@ -168,8 +168,9 @@ void SvgDocument::circle(double cx, double cy, double radius, const std::string&
 }
 
 void SvgDocument::text(double x, double y, const std::string& content, double font_size,
-                       const std::string& fill, TextAnchor anchor) {
-    if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(font_size)) {
+                       const std::string& fill, TextAnchor anchor, double rotation) {
+    if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(font_size) ||
+        !std::isfinite(rotation)) {
         throw std::invalid_argument("Numerical arguments must be finite");
     }
 
@@ -182,9 +183,16 @@ void SvgDocument::text(double x, double y, const std::string& content, double fo
     std::format_to(
         std::back_inserter(body_),
         "\t"
-        R"(<text x="{}" y="{}" font-size="{}" font-family="sans-serif" fill="{}" text-anchor="{}">{}</text>)"
-        "\n",
-        x, y, font_size, escapeXml(fill), text_anchor, escapeXml(content));
+        R"(<text x="{}" y="{}" font-size="{}" font-family="sans-serif" fill="{}" text-anchor="{}")",
+        x, y, font_size, escapeXml(fill), text_anchor);
+    if (rotation != 0.0) {
+        std::format_to(std::back_inserter(body_), " transform=\"rotate({} {} {})\"", rotation, x,
+                       y);
+    }
+    std::format_to(std::back_inserter(body_),
+                   R"(>{}</text>)"
+                   "\n",
+                   escapeXml(content));
 }
 
 } // namespace neuro::viz

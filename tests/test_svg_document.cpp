@@ -907,3 +907,34 @@ TEST(SvgDocumentTest, SaveRejectsDirectoryPath) {
 
     EXPECT_THROW(svg.save(std::filesystem::temp_directory_path().string()), std::runtime_error);
 }
+
+TEST(SvgDocumentTest, RotatedText) {
+    neuro::viz::SvgDocument document(800, 600);
+
+    document.text(25, 300, "Loss", 14, "black", neuro::viz::TextAnchor::Middle, -90);
+
+    EXPECT_NE(document.str().find(R"svg(transform="rotate(-90 25 300)")svg"), std::string::npos);
+}
+
+TEST(SvgDocumentTest, ZeroRotationOmitsTransform) {
+    neuro::viz::SvgDocument document(800, 600);
+
+    document.text(25, 300, "Loss", 14, "black", neuro::viz::TextAnchor::Middle, 0);
+
+    EXPECT_EQ(document.str().find("transform="), std::string::npos);
+}
+
+TEST(SvgDocumentTest, RejectsNonFiniteRotation) {
+    neuro::viz::SvgDocument document(800, 600);
+    const auto before = document.str();
+
+    for (double rotation :
+         {std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity(),
+          std::numeric_limits<double>::quiet_NaN()}) {
+        EXPECT_THROW(
+            document.text(25, 300, "Loss", 14, "black", neuro::viz::TextAnchor::Middle, rotation),
+            std::invalid_argument);
+
+        EXPECT_EQ(document.str(), before);
+    }
+}

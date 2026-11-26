@@ -50,6 +50,7 @@ add_library(neuro
     src/nn/Conv2D.cpp
     src/data/CIFAR10Dataset.cpp
     src/viz/SvgDocument.cpp
+    src/viz/Plot.cpp
 )
 
 add_library(Neuro::Neuro ALIAS neuro)
