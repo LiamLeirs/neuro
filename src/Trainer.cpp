@@ -37,6 +37,8 @@ TrainingHistory Trainer::fit(DataLoader& loader, std::size_t num_epochs) {
 }
 
 MetricResults Trainer::trainEpoch(DataLoader& loader) {
+    model_.train();
+
     metrics::Mean mean;
 
     resetMetrics();
@@ -64,6 +66,8 @@ MetricResults Trainer::trainEpoch(DataLoader& loader) {
 }
 
 MetricResults Trainer::evaluate(DataLoader& loader) {
+    model_.eval();
+
     metrics::Mean mean;
     NoGradGuard guard;
 
