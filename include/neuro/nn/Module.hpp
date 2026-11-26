@@ -15,6 +15,18 @@ public:
         return {};
     };
     virtual ~Module() = default;
+    virtual void train(bool mode = true) {
+        training_ = mode;
+    };
+    void eval() {
+        train(false);
+    };
+    bool isTraining() const noexcept {
+        return training_;
+    };
+
+private:
+    bool training_ = true;
 };
 
 } // namespace neuro::nn

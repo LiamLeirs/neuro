@@ -22,6 +22,7 @@ public:
     Sequential(Modules&&... modules) {
         (add(std::make_unique<std::decay_t<Modules>>(std::forward<Modules>(modules))), ...);
     };
+    void train(bool mode = true) override;
 
 private:
     std::vector<std::unique_ptr<Module>> modules_;

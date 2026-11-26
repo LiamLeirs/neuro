@@ -8,6 +8,7 @@ void Sequential::add(std::unique_ptr<Module> module) {
     if (module == nullptr) {
         throw std::invalid_argument("Module can't be null");
     }
+    module->train(isTraining());
     modules_.push_back(std::move(module));
 }
 
@@ -27,5 +28,12 @@ std::vector<Tensor> Sequential::parameters() const {
         }
     }
     return params;
+};
+
+void Sequential::train(bool mode) {
+    Module::train(mode);
+    for (auto& child : modules_) {
+        child->train(mode);
+    }
 };
 } // namespace neuro::nn

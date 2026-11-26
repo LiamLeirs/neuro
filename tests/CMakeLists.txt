@@ -30,6 +30,7 @@ add_executable(neuro_tests
     test_cifar10.cpp
     test_svg_document.cpp
     test_plot.cpp
+    test_module_mode.cpp
 )
 
 target_link_libraries(neuro_tests
