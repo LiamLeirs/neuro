@@ -51,6 +51,7 @@ add_library(neuro
     src/data/CIFAR10Dataset.cpp
     src/viz/SvgDocument.cpp
     src/viz/Plot.cpp
+    src/nn/BatchNorm1D.cpp
 )
 
 add_library(Neuro::Neuro ALIAS neuro)

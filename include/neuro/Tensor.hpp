@@ -16,6 +16,7 @@ namespace neuro {
 class Tensor {
 public:
     explicit Tensor(const af::array& data, bool requires_grad = false);
+    Tensor();
     Tensor(std::initializer_list<float> value, bool requires_grad = false);
     Tensor(std::initializer_list<std::initializer_list<float>> value, bool requires_grad = false);
 

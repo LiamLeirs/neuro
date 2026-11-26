@@ -81,6 +81,8 @@ Tensor::Tensor(std::initializer_list<float> value, bool requires_grad)
 Tensor::Tensor(std::initializer_list<std::initializer_list<float>> value, bool requires_grad)
     : Tensor(makeMatrix(value), requires_grad) {}
 
+Tensor::Tensor() : Tensor(af::array{}, false) {}
+
 // ==================== Getters ====================
 
 const af::array& Tensor::data() const {
