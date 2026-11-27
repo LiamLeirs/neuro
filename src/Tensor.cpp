@@ -427,6 +427,76 @@ Tensor Tensor::crop(const af::dim4& start, const af::dim4& size) const {
     return slice(start, start + size);
 }
 
+Tensor Tensor::cropBatch(const Tensor& offsets_y, const Tensor& offsets_x, int height,
+                         int width) const {
+    if (data().elements() == 0 || offsets_y.data().elements() == 0 ||
+        offsets_x.data().elements() == 0) {
+        throw std::invalid_argument("Tensors must not be empty");
+    }
+
+    const auto dims = shape();
+    const af::dim4 expected_shape(dims[0], 1, 1, 1);
+
+    if (offsets_y.shape() != expected_shape || offsets_x.shape() != expected_shape) {
+        throw std::invalid_argument("Expected one offset per image");
+    }
+
+    if (offsets_y.data().type() != s32 || offsets_x.data().type() != s32) {
+        throw std::invalid_argument("Offsets must have dtype s32");
+    }
+
+    if (height <= 0 || width <= 0) {
+        throw std::invalid_argument("Crop dimensions must be positive");
+    }
+
+    const dim_t max_y = dims[2] - height;
+    const dim_t max_x = dims[3] - width;
+
+    if (max_y < 0 || max_x < 0) {
+        throw std::out_of_range("Crop exceeds input dimensions");
+    }
+
+    if (af::min<int>(offsets_y.data()) < 0 || af::max<int>(offsets_y.data()) > max_y ||
+        af::min<int>(offsets_x.data()) < 0 || af::max<int>(offsets_x.data()) > max_x) {
+        throw std::out_of_range("Crop offsets exceed input bounds");
+    }
+
+    const af::array n = af::range(af::dim4(dims[0], 1, 1, 1), 0, s64);
+    const af::array c = af::range(af::dim4(1, dims[1], 1, 1), 1, s64);
+    const af::array y = af::range(af::dim4(1, 1, height, 1), 2, s64);
+    const af::array x = af::range(af::dim4(1, 1, 1, width), 3, s64);
+
+    const af::array shifted_y = af::batchFunc(y, offsets_y.data().as(s64), af::operator+);
+    const af::array shifted_x = af::batchFunc(x, offsets_x.data().as(s64), af::operator+);
+
+    const dim_t stride_c = dims[0];
+    const dim_t stride_y = dims[0] * dims[1];
+    const dim_t stride_x = dims[0] * dims[1] * dims[2];
+
+    const af::array nc = af::batchFunc(n, c * stride_c, af::operator+);
+
+    const af::array ncy = af::batchFunc(nc, shifted_y * stride_y, af::operator+);
+
+    const af::array indices = af::batchFunc(ncy, shifted_x * stride_x, af::operator+);
+
+    const af::dim4 output_shape(dims[0], dims[1], height, width);
+
+    const af::array flattened_indices = af::flat(indices);
+    const af::array flattened_crop = af::lookup(af::flat(data()), flattened_indices, 0);
+
+    const af::array crop = af::moddims(flattened_crop, output_shape);
+
+    return makeResult(crop, {impl_},
+                      [parent = impl_, flattened_indices, dims](const af::array& grad) {
+                          if (parent->requires_grad_) {
+                              af::array flattened_incoming_grad = af::flat(grad);
+                              af::array flattened_parent_grad = af::flat(parent->grad_);
+                              flattened_parent_grad(flattened_indices) += flattened_incoming_grad;
+                              parent->grad_ = af::moddims(flattened_parent_grad, dims);
+                          }
+                      });
+}
+
 Tensor Tensor::matmul(const Tensor& other) const {
     auto left = impl_;
     auto right = other.impl_;

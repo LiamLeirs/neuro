@@ -64,6 +64,7 @@ public:
     Tensor var(int dim) const;
     Tensor sqrt() const;
     Tensor crop(const af::dim4& start, const af::dim4& size) const;
+    Tensor cropBatch(const Tensor& offsets_y, const Tensor& offsets_x, int height, int width) const;
 
     Tensor conv2d(const Tensor& weights, int stride = 1, int padding = 0, int dilation = 1) const;
     Tensor maxpool2d(int window_size, int stride = 1, int padding = 1) const;

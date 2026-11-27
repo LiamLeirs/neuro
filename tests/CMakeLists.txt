@@ -43,6 +43,8 @@ add_executable(neuro_tests
     test_random_horizontal_flip.cpp
     test_pad.cpp
     test_crop.cpp
+    test_crop_batch.cpp
+    test_random_crop.cpp
 )
 
 target_link_libraries(neuro_tests
