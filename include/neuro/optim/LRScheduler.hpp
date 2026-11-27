@@ -9,6 +9,10 @@ public:
     explicit LRScheduler(Optimizer& optimizer)
         : optimizer_(optimizer), base_lr_(optimizer.learningRate()) {}
 
+    const Optimizer& optimizer() const noexcept {
+        return optimizer_;
+    }
+
     virtual void step() = 0;
 
     virtual ~LRScheduler() = default;

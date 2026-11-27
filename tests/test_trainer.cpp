@@ -4,11 +4,12 @@
 #include "neuro/Trainer.hpp"
 #include "neuro/data/DataLoader.hpp"
 #include "neuro/data/TensorDataset.hpp"
-#include "neuro/metrics/Accuracy.hpp"
 #include "neuro/metrics/Metric.hpp"
 #include "neuro/nn/Linear.hpp"
 #include "neuro/nn/loss/MSELoss.hpp"
+#include "neuro/optim/ReduceLROnPlateau.hpp"
 #include "neuro/optim/SGD.hpp"
+#include "neuro/optim/StepLR.hpp"
 
 #include <cmath>
 #include <gtest/gtest.h>
@@ -308,8 +309,9 @@ TEST_F(TrainerTest, HistoryWorksWithoutRegisteredMetrics) {
     auto history = trainer.fit(loader, 2);
 
     for (const auto& epoch : history) {
-        EXPECT_EQ(epoch.size(), 1u);
+        EXPECT_EQ(epoch.size(), 2u);
         EXPECT_TRUE(epoch.contains("loss"));
+        EXPECT_DOUBLE_EQ(epoch.at("lr"), 0.01);
     }
 }
 
@@ -565,4 +567,340 @@ TEST_F(TrainerTest, VerboseDefaultsToTrue) {
     std::string output = testing::internal::GetCapturedStdout();
 
     EXPECT_NE(output.find("Epoch [1/1]"), std::string::npos);
+}
+
+TEST_F(TrainerTest, HistoryContainsValidationMetrics) {
+    TensorDataset val_dataset{std::vector<Tensor>{Tensor{5.0f}, Tensor{6.0f}},
+                              std::vector<Tensor>{Tensor{11.0f}, Tensor{13.0f}}};
+
+    DataLoader val_loader{val_dataset, 2, false};
+
+    trainer.addMetric<SampleCountMetric>("samples");
+
+    auto history = trainer.fit(loader, val_loader, 3);
+
+    ASSERT_EQ(history.size(), 3u);
+
+    for (const auto& epoch : history) {
+        EXPECT_TRUE(std::isfinite(epoch.at("loss")));
+        EXPECT_TRUE(std::isfinite(epoch.at("val_loss")));
+
+        EXPECT_DOUBLE_EQ(epoch.at("samples"), 5.0);
+        EXPECT_DOUBLE_EQ(epoch.at("val_samples"), 2.0);
+        EXPECT_DOUBLE_EQ(epoch.at("lr"), 0.01);
+    }
+}
+
+TEST_F(TrainerTest, HistoryWithoutValidationOmitsValidationMetrics) {
+    trainer.addMetric<SampleCountMetric>("samples");
+
+    auto history = trainer.fit(loader, 2);
+
+    for (const auto& epoch : history) {
+        EXPECT_FALSE(epoch.contains("val_loss"));
+        EXPECT_FALSE(epoch.contains("val_samples"));
+    }
+}
+
+TEST_F(TrainerTest, FinalValidationLossMatchesEvaluation) {
+    auto history = trainer.fit(loader, loader, 3);
+    auto evaluation = trainer.evaluate(loader);
+
+    EXPECT_DOUBLE_EQ(history.back().at("val_loss"), evaluation.at("loss"));
+}
+
+TEST_F(TrainerTest, ValidationSwitchesModelAndGradientModes) {
+    std::vector<bool> training_modes;
+    std::vector<bool> gradient_modes;
+
+    LossFunction checking_loss = [&](const Tensor& predictions, const Tensor& targets) {
+        training_modes.push_back(model.isTraining());
+        gradient_modes.push_back(GradMode::isEnabled());
+
+        return criterion(predictions, targets);
+    };
+
+    Trainer checking_trainer(model, optim, checking_loss, {.verbose = false});
+
+    checking_trainer.fit(loader, loader, 2);
+
+    // Three training batches followed by three validation batches.
+    const std::vector<bool> expected{true, true, true, false, false, false,
+                                     true, true, true, false, false, false};
+
+    EXPECT_EQ(training_modes, expected);
+    EXPECT_EQ(gradient_modes, expected);
+}
+
+TEST_F(TrainerTest, RejectsReservedHistoryMetricNames) {
+    for (const auto* name : {"lr", "val_loss", "val_accuracy", "val_"}) {
+        EXPECT_THROW(trainer.addMetric<SampleCountMetric>(name), std::invalid_argument);
+    }
+}
+
+TEST_F(TrainerTest, EpochSchedulerStepsAfterEachEpoch) {
+    StepLR scheduler(optim, 2, 0.5);
+
+    trainer.setScheduler(scheduler);
+
+    auto history = trainer.fit(loader, 4);
+
+    ASSERT_EQ(history.size(), 4u);
+
+    EXPECT_DOUBLE_EQ(history[0].at("lr"), 0.01);
+    EXPECT_DOUBLE_EQ(history[1].at("lr"), 0.01);
+    EXPECT_DOUBLE_EQ(history[2].at("lr"), 0.005);
+    EXPECT_DOUBLE_EQ(history[3].at("lr"), 0.005);
+
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.0025);
+}
+
+TEST_F(TrainerTest, EpochSchedulerStepsOnceDespiteValidation) {
+    StepLR scheduler(optim, 1, 0.5);
+
+    trainer.setScheduler(scheduler);
+
+    auto history = trainer.fit(loader, loader, 3);
+
+    EXPECT_DOUBLE_EQ(history[0].at("lr"), 0.01);
+    EXPECT_DOUBLE_EQ(history[1].at("lr"), 0.005);
+    EXPECT_DOUBLE_EQ(history[2].at("lr"), 0.0025);
+
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.00125);
+}
+
+TEST_F(TrainerTest, SchedulerStatePersistsBetweenFitCalls) {
+    StepLR scheduler(optim, 2, 0.5);
+
+    trainer.setScheduler(scheduler);
+
+    trainer.fit(loader, 1);
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.01);
+
+    trainer.fit(loader, 1);
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.005);
+}
+
+TEST_F(TrainerTest, ZeroEpochsDoesNotStepScheduler) {
+    StepLR scheduler(optim, 1, 0.5);
+
+    trainer.setScheduler(scheduler);
+
+    auto history = trainer.fit(loader, 0);
+
+    EXPECT_TRUE(history.empty());
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.01);
+}
+
+TEST_F(TrainerTest, EvaluationDoesNotStepScheduler) {
+    StepLR scheduler(optim, 1, 0.5);
+
+    trainer.setScheduler(scheduler);
+
+    trainer.evaluate(loader);
+
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.01);
+}
+
+TEST_F(TrainerTest, RejectsSchedulerWithDifferentOptimizer) {
+    SGD other_optimizer(model.parameters(), 0.01);
+    StepLR scheduler(other_optimizer, 1, 0.5);
+
+    EXPECT_THROW(trainer.setScheduler(scheduler), std::invalid_argument);
+}
+
+TEST_F(TrainerTest, FailedRegistrationPreservesExistingScheduler) {
+    StepLR scheduler(optim, 1, 0.5);
+    trainer.setScheduler(scheduler);
+
+    SGD other_optimizer(model.parameters(), 0.01);
+    StepLR invalid_scheduler(other_optimizer, 1, 0.1);
+
+    EXPECT_THROW(trainer.setScheduler(invalid_scheduler), std::invalid_argument);
+
+    trainer.fit(loader, 1);
+
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.005);
+    EXPECT_DOUBLE_EQ(other_optimizer.learningRate(), 0.01);
+}
+
+TEST_F(TrainerTest, PlateauSchedulerMonitorsTrainingMetric) {
+    trainer.addMetric<ConfigurableMetric>("score", 0.5);
+
+    ReduceLROnPlateau scheduler(optim, PlateauMode::Max, 0.5, 0);
+
+    trainer.setScheduler(scheduler, "score");
+
+    auto history = trainer.fit(loader, 3);
+
+    EXPECT_DOUBLE_EQ(history[0].at("lr"), 0.01);
+    EXPECT_DOUBLE_EQ(history[1].at("lr"), 0.01);
+    EXPECT_DOUBLE_EQ(history[2].at("lr"), 0.005);
+
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.0025);
+}
+
+TEST_F(TrainerTest, PlateauSchedulerMonitorsValidationMetric) {
+    trainer.addMetric<ConfigurableMetric>("score", 0.5);
+
+    ReduceLROnPlateau scheduler(optim, PlateauMode::Max, 0.5, 0);
+
+    trainer.setScheduler(scheduler, "val_score");
+
+    auto history = trainer.fit(loader, loader, 3);
+
+    EXPECT_DOUBLE_EQ(history[0].at("lr"), 0.01);
+    EXPECT_DOUBLE_EQ(history[1].at("lr"), 0.01);
+    EXPECT_DOUBLE_EQ(history[2].at("lr"), 0.005);
+
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.0025);
+}
+
+TEST_F(TrainerTest, PlateauSchedulerUsesSelectedMetric) {
+    trainer.addMetric<SampleCountMetric>("samples");
+
+    TensorDataset val_dataset{std::vector<Tensor>{Tensor{5.0f}, Tensor{6.0f}},
+                              std::vector<Tensor>{Tensor{11.0f}, Tensor{13.0f}}};
+
+    DataLoader val_loader{val_dataset, 2, false};
+
+    ReduceLROnPlateau scheduler(optim, PlateauMode::Max, 0.5, 0);
+
+    trainer.setScheduler(scheduler, "val_samples");
+
+    trainer.fit(loader, val_loader, 1);
+
+    // Validation sample count increases from two to five.
+    trainer.fit(loader, loader, 1);
+
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.01);
+
+    // Validation sample count decreases from five to two.
+    trainer.fit(loader, val_loader, 1);
+
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.005);
+}
+
+TEST_F(TrainerTest, PlateauSchedulerAcceptsDefaultValidationLoss) {
+    ReduceLROnPlateau scheduler(optim);
+
+    trainer.setScheduler(scheduler);
+
+    EXPECT_NO_THROW(trainer.fit(loader, loader, 2));
+}
+
+TEST_F(TrainerTest, PlateauSchedulerAcceptsTrainingLoss) {
+    ReduceLROnPlateau scheduler(optim);
+
+    trainer.setScheduler(scheduler, "loss");
+
+    EXPECT_NO_THROW(trainer.fit(loader, 2));
+}
+
+TEST_F(TrainerTest, PlateauSchedulerRejectsMissingValidationLoader) {
+    ReduceLROnPlateau scheduler(optim);
+
+    trainer.setScheduler(scheduler);
+
+    auto before = snapshotParameters();
+
+    EXPECT_THROW(trainer.fit(loader, 2), std::invalid_argument);
+
+    EXPECT_EQ(before, snapshotParameters());
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.01);
+}
+
+TEST_F(TrainerTest, PlateauSchedulerRejectsUnknownMonitorsBeforeTraining) {
+    ReduceLROnPlateau scheduler(optim);
+
+    auto before = snapshotParameters();
+
+    for (const auto* monitor : {"unknown", "accuracy", "val_unknown", "lr", "val_lr"}) {
+
+        trainer.setScheduler(scheduler, monitor);
+
+        EXPECT_THROW(trainer.fit(loader, loader, 2), std::invalid_argument);
+
+        EXPECT_EQ(before, snapshotParameters());
+        EXPECT_DOUBLE_EQ(optim.learningRate(), 0.01);
+    }
+}
+
+TEST_F(TrainerTest, PlateauSchedulerRejectsEmptyMonitor) {
+    ReduceLROnPlateau scheduler(optim);
+
+    EXPECT_THROW(trainer.setScheduler(scheduler, ""), std::invalid_argument);
+}
+
+TEST_F(TrainerTest, PlateauSchedulerRejectsDifferentOptimizer) {
+    SGD other_optimizer(model.parameters(), 0.01);
+    ReduceLROnPlateau scheduler(other_optimizer);
+
+    EXPECT_THROW(trainer.setScheduler(scheduler), std::invalid_argument);
+}
+
+TEST_F(TrainerTest, PlateauSchedulerReplacesEpochScheduler) {
+    StepLR epoch_scheduler(optim, 1, 0.5);
+    ReduceLROnPlateau plateau_scheduler(optim, PlateauMode::Min, 0.1, 0);
+
+    trainer.addMetric<ConfigurableMetric>("score", 1.0);
+
+    trainer.setScheduler(epoch_scheduler);
+    trainer.setScheduler(plateau_scheduler, "score");
+
+    trainer.fit(loader, 2);
+
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.001);
+}
+
+TEST_F(TrainerTest, EpochSchedulerReplacesPlateauScheduler) {
+    StepLR epoch_scheduler(optim, 1, 0.5);
+    ReduceLROnPlateau plateau_scheduler(optim);
+
+    // The default plateau monitor requires validation.
+    trainer.setScheduler(plateau_scheduler);
+    trainer.setScheduler(epoch_scheduler);
+
+    // No validation loader is needed after replacement.
+    EXPECT_NO_THROW(trainer.fit(loader, 2));
+
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.0025);
+}
+
+TEST_F(TrainerTest, ClearSchedulerDetachesEpochScheduler) {
+    StepLR scheduler(optim, 1, 0.5);
+
+    trainer.setScheduler(scheduler);
+    trainer.fit(loader, 1);
+
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.005);
+
+    trainer.clearScheduler();
+    trainer.fit(loader, 2);
+
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.005);
+}
+
+TEST_F(TrainerTest, ClearSchedulerDetachesPlateauScheduler) {
+    ReduceLROnPlateau scheduler(optim);
+
+    trainer.setScheduler(scheduler);
+    trainer.clearScheduler();
+
+    EXPECT_NO_THROW(trainer.fit(loader, 2));
+
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.01);
+}
+
+TEST_F(TrainerTest, FailedPlateauRegistrationPreservesExistingScheduler) {
+    StepLR epoch_scheduler(optim, 1, 0.5);
+    ReduceLROnPlateau plateau_scheduler(optim);
+
+    trainer.setScheduler(epoch_scheduler);
+
+    EXPECT_THROW(trainer.setScheduler(plateau_scheduler, ""), std::invalid_argument);
+
+    trainer.fit(loader, 1);
+
+    EXPECT_DOUBLE_EQ(optim.learningRate(), 0.005);
 }

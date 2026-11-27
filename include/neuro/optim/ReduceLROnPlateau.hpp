@@ -64,6 +64,10 @@ public:
         }
     }
 
+    const Optimizer& optimizer() const noexcept {
+        return optimizer_;
+    }
+
 private:
     Optimizer& optimizer_;
     PlateauMode mode_;

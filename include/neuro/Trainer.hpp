@@ -4,7 +4,9 @@
 #include "neuro/data/DataLoader.hpp"
 #include "neuro/metrics/Metric.hpp"
 #include "neuro/nn/Module.hpp"
+#include "neuro/optim/LRScheduler.hpp"
 #include "neuro/optim/Optimizer.hpp"
+#include "neuro/optim/ReduceLROnPlateau.hpp"
 
 #include <cstddef>
 #include <functional>
@@ -29,6 +31,8 @@ public:
 
     TrainingHistory fit(DataLoader& loader, std::size_t num_epochs);
 
+    TrainingHistory fit(DataLoader& train_loader, DataLoader& val_loader, std::size_t num_epochs);
+
     MetricResults evaluate(DataLoader& loader);
 
     void addMetric(std::string metric_name, std::unique_ptr<metrics::Metric> metric);
@@ -38,6 +42,12 @@ public:
     void addMetric(std::string name, Args&&... args) {
         addMetric(std::move(name), std::make_unique<MetricType>(std::forward<Args>(args)...));
     }
+
+    void setScheduler(LRScheduler& scheduler);
+
+    void setScheduler(ReduceLROnPlateau& scheduler, std::string monitor = "val_loss");
+
+    void clearScheduler() noexcept;
 
 private:
     nn::Module& model_;
@@ -53,6 +63,17 @@ private:
     void updateMetrics(const Tensor& predictions, const Tensor& targets);
 
     MetricResults computeMetrics() const;
+
+    TrainingHistory fitImpl(DataLoader& train_loader, DataLoader* val_loader,
+                            std::size_t num_epochs);
+
+    LRScheduler* scheduler_ = nullptr;
+
+    ReduceLROnPlateau* plateau_scheduler_ = nullptr;
+
+    std::string scheduler_monitor_;
+
+    void validateSchedulerMonitor(bool has_validation) const;
 };
 
 } // namespace neuro

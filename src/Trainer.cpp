@@ -17,15 +17,44 @@ Trainer::Trainer(nn::Module& model, Optimizer& optim, LossFunction criterion, Tr
 }
 
 TrainingHistory Trainer::fit(DataLoader& loader, std::size_t num_epochs) {
+    return fitImpl(loader, nullptr, num_epochs);
+}
+
+TrainingHistory Trainer::fit(DataLoader& train_loader, DataLoader& val_loader,
+                             std::size_t num_epochs) {
+    return fitImpl(train_loader, &val_loader, num_epochs);
+}
+
+TrainingHistory Trainer::fitImpl(DataLoader& train_loader, DataLoader* val_loader,
+                                 std::size_t num_epochs) {
+
+    validateSchedulerMonitor(val_loader != nullptr);
+
     TrainingHistory history;
     history.reserve(num_epochs);
 
     for (std::size_t epoch = 0; epoch < num_epochs; epoch++) {
-        MetricResults results = trainEpoch(loader);
+        const double current_lr = optim_.learningRate();
+
+        MetricResults results = trainEpoch(train_loader);
+        results["lr"] = current_lr;
+
+        if (val_loader) {
+            MetricResults val_results = evaluate(*val_loader);
+            for (const auto& [name, value] : val_results) {
+                results["val_" + name] = value;
+            }
+        }
+
+        if (scheduler_) {
+            scheduler_->step();
+        } else if (plateau_scheduler_) {
+            plateau_scheduler_->step(results.at(scheduler_monitor_));
+        }
 
         if (config_.verbose) {
             std::cout << "Epoch [" << epoch + 1 << "/" << num_epochs << "]";
-            for (auto& [name, value] : results) {
+            for (const auto& [name, value] : results) {
                 std::cout << " - " << name << ": " << value << " ";
             }
             std::cout << '\n';
@@ -97,6 +126,12 @@ void Trainer::addMetric(std::string metric_name, std::unique_ptr<metrics::Metric
     if (metric_name == "loss") {
         throw std::invalid_argument("Trainer tracks loss internally");
     }
+    if (metric_name == "lr") {
+        throw std::invalid_argument("Trainer tracks learning rate internally");
+    }
+    if (metric_name.starts_with("val_")) {
+        throw std::invalid_argument("Trainer tracks validation metrics internally");
+    }
     metrics_.emplace(std::move(metric_name), std::move(metric));
 };
 
@@ -120,6 +155,53 @@ MetricResults Trainer::computeMetrics() const {
         results[name] = metric->compute();
     }
     return results;
+}
+
+void Trainer::setScheduler(LRScheduler& scheduler) {
+    if (&scheduler.optimizer() != &optim_) {
+        throw std::invalid_argument("Scheduler and trainer optimizers differ");
+    }
+    plateau_scheduler_ = nullptr;
+    scheduler_ = &scheduler;
+    scheduler_monitor_.clear();
+}
+
+void Trainer::setScheduler(ReduceLROnPlateau& scheduler, std::string monitor) {
+    if (&scheduler.optimizer() != &optim_) {
+        throw std::invalid_argument("Scheduler and trainer optimizers differ");
+    }
+    if (monitor.empty()) {
+        throw std::invalid_argument("Monitor metric is empty");
+    }
+    plateau_scheduler_ = &scheduler;
+    scheduler_monitor_ = std::move(monitor);
+    scheduler_ = nullptr;
+}
+
+void Trainer::clearScheduler() noexcept {
+    scheduler_ = nullptr;
+    plateau_scheduler_ = nullptr;
+    scheduler_monitor_.clear();
+}
+
+void Trainer::validateSchedulerMonitor(bool has_validation) const {
+    if (!plateau_scheduler_) {
+        return;
+    }
+
+    std::string metric = scheduler_monitor_;
+
+    if (metric.starts_with("val_")) {
+        if (!has_validation) {
+            throw std::invalid_argument("No validation loader present");
+        }
+
+        metric = metric.substr(4);
+    }
+
+    if (metric != "loss" && !metrics_.contains(metric)) {
+        throw std::invalid_argument("Metric not tracked in trainer");
+    }
 }
 
 } // namespace neuro
