@@ -6,6 +6,8 @@
 #include <arrayfire.h>
 #include <gtest/gtest.h>
 #include <initializer_list>
+#include <limits>
+#include <stdexcept>
 #include <vector>
 
 using namespace neuro;
@@ -167,4 +169,77 @@ TEST(SGDIntegration, MultiFeatureRegression) {
     EXPECT_NEAR(w.data()(0).scalar<float>(), 2.0f, 1e-3f);
     EXPECT_NEAR(w.data()(1).scalar<float>(), -3.0f, 1e-3f);
     EXPECT_NEAR(b.data().scalar<float>(), 1.0f, 1e-3f);
+}
+
+TEST(SGD, RejectsInvalidWeightDecay) {
+    Tensor param({2.0f}, true);
+
+    EXPECT_THROW(SGD({param}, 0.1, -0.01), std::invalid_argument);
+
+    EXPECT_THROW(SGD({param}, 0.1, std::numeric_limits<double>::infinity()), std::invalid_argument);
+
+    EXPECT_THROW(SGD({param}, 0.1, std::numeric_limits<double>::quiet_NaN()),
+                 std::invalid_argument);
+}
+
+TEST(SGD, ZeroWeightDecayPreservesUpdate) {
+    Tensor param1({2.0f}, true);
+    Tensor param2({2.0f}, true);
+
+    SGD optimizer1({param1}, 0.1);
+    SGD optimizer2({param2}, 0.1, 0.0);
+
+    (param1 * 3.0).sum().backward();
+    (param2 * 3.0).sum().backward();
+
+    optimizer1.step();
+    optimizer2.step();
+
+    EXPECT_NEAR(param1.data().scalar<float>(), 1.7, 1e-6);
+    EXPECT_FLOAT_EQ(param1.data().scalar<float>(), param2.data().scalar<float>());
+}
+
+TEST(SGD, AppliesWeightDecay) {
+    Tensor param({2.0f, -4.0f}, true);
+    SGD optimizer({param}, 0.1, 0.2);
+
+    (param * 3.0).sum().backward();
+
+    optimizer.step();
+
+    float values[2];
+    param.data().host(values);
+
+    EXPECT_NEAR(values[0], 1.66, 1e-6);
+    EXPECT_NEAR(values[1], -4.22, 1e-6);
+}
+
+TEST(SGD, WeightDecayShrinksParametersWithZeroGradient) {
+    Tensor param({2.0f, -4.0f}, true);
+    SGD optimizer({param}, 0.1, 0.2);
+
+    (param * 0.0).sum().backward();
+
+    optimizer.step();
+
+    float values[2];
+    param.data().host(values);
+
+    EXPECT_NEAR(values[0], 1.96, 1e-6);
+    EXPECT_NEAR(values[1], -3.92, 1e-6);
+}
+
+TEST(SGD, WeightDecayDoesNotModifyGradients) {
+    Tensor param({2.0f, -4.0f}, true);
+    SGD optimizer({param}, 0.1, 0.2);
+
+    (param * 3.0).sum().backward();
+
+    optimizer.step();
+
+    float gradients[2];
+    param.grad().host(gradients);
+
+    EXPECT_FLOAT_EQ(gradients[0], 3.0f);
+    EXPECT_FLOAT_EQ(gradients[1], 3.0f);
 }
