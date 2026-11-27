@@ -2,19 +2,15 @@
 #include "neuro/Tensor.hpp"
 
 #include <cmath>
+#include <stdexcept>
 #include <vector>
 
 namespace neuro {
 
 class Optimizer {
 public:
-    Optimizer(std::vector<Tensor> parameters, double lr)
-        : parameters_(std::move(parameters)), lr_(lr) {
-        if (lr <= 0)
-            throw std::invalid_argument("Learning rate must be greater than zero");
-        if (!std::isfinite(lr)) {
-            throw std::invalid_argument("Learning rate must be finite");
-        }
+    Optimizer(std::vector<Tensor> parameters, double lr) : parameters_(std::move(parameters)) {
+        setLearningRate(lr);
     };
     virtual void step() = 0;
     void zeroGrad() {
@@ -23,6 +19,17 @@ public:
         }
     };
     virtual ~Optimizer() = default;
+
+    double learningRate() const noexcept {
+        return lr_;
+    }
+
+    void setLearningRate(double lr) {
+        if (!std::isfinite(lr) || lr < 0.0) {
+            throw std::invalid_argument("Learning rate must be finite and non-negative");
+        }
+        lr_ = lr;
+    }
 
 protected:
     af::array& data(Tensor& param) {

@@ -180,7 +180,6 @@ TEST(AdamTest, IgnoresParametersWithoutGradientTracking) {
 TEST(AdamTest, RejectsInvalidLearningRate) {
     Tensor parameter({1.0f}, true);
 
-    EXPECT_THROW(Adam({parameter}, 0.0), std::invalid_argument);
     EXPECT_THROW(Adam({parameter}, -0.1), std::invalid_argument);
 }
 

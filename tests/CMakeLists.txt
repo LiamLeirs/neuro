@@ -45,6 +45,7 @@ add_executable(neuro_tests
     test_crop.cpp
     test_crop_batch.cpp
     test_random_crop.cpp
+    test_lr_schedulers.cpp
 )
 
 target_link_libraries(neuro_tests
