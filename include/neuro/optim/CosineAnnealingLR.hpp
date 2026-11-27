@@ -22,7 +22,7 @@ public:
     }
 
     void step() override {
-        ++last_epoch_;
+        last_epoch_ += 1;
 
         const auto t = std::min(last_epoch_, t_max_);
 
