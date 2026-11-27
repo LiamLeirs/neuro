@@ -21,6 +21,10 @@ public:
          ...);
     };
 
+    bool supportsBatch() const noexcept override;
+
+    Tensor forwardBatch(const Tensor& input) const override;
+
 private:
     std::vector<std::unique_ptr<Transform>> transforms_;
 };

@@ -57,6 +57,7 @@ add_library(neuro
     src/optim/AdamBase.cpp
     src/optim/AdamW.cpp
     src/data/transforms/Compose.cpp
+    src/data/TransformDataset.cpp
 )
 
 add_library(Neuro::Neuro ALIAS neuro)

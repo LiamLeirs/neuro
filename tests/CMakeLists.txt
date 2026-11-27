@@ -36,6 +36,7 @@ add_executable(neuro_tests
     test_batchnorm1d.cpp
     test_batchnorm2d.cpp
     test_compose.cpp
+    test_transform_dataset.cpp
 )
 
 target_link_libraries(neuro_tests
