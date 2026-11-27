@@ -407,6 +407,26 @@ Tensor Tensor::pad(const af::dim4& lower, const af::dim4& upper) const {
     });
 }
 
+Tensor Tensor::crop(const af::dim4& start, const af::dim4& size) const {
+    if (impl_->data_.elements() == 0) {
+        throw std::invalid_argument("Tensor is empty");
+    }
+
+    const auto dims = shape();
+
+    for (std::size_t i = 0; i < 4; ++i) {
+        if (size[i] <= 0) {
+            throw std::invalid_argument("Crop sizes must be positive");
+        }
+
+        if (start[i] < 0 || start[i] >= dims[i] || size[i] > dims[i] - start[i]) {
+            throw std::out_of_range("Crop region exceeds tensor bounds");
+        }
+    }
+
+    return slice(start, start + size);
+}
+
 Tensor Tensor::matmul(const Tensor& other) const {
     auto left = impl_;
     auto right = other.impl_;
@@ -446,6 +466,25 @@ Tensor Tensor::slice(int start, int end) const {
             parent->grad_.rows(start, end - 1) += grad;
     });
 };
+
+Tensor Tensor::slice(const af::dim4& start, const af::dim4& end) const {
+    if (impl_->data_.elements() == 0) {
+        throw std::invalid_argument("Tensor is empty");
+    }
+    const auto dims = shape();
+    for (std::size_t i = 0; i < 4; i++) {
+        if (start[i] < 0 || end[i] <= start[i] || end[i] > dims[i]) {
+            throw std::out_of_range("Wrong start and end values");
+        }
+    }
+    af::array result = impl_->data_(af::seq(start[0], end[0] - 1), af::seq(start[1], end[1] - 1),
+                                    af::seq(start[2], end[2] - 1), af::seq(start[3], end[3] - 1));
+    return makeResult(result, {impl_}, [parent = impl_, start, end](const af::array& grad) {
+        if (parent->requires_grad_)
+            parent->grad_(af::seq(start[0], end[0] - 1), af::seq(start[1], end[1] - 1),
+                          af::seq(start[2], end[2] - 1), af::seq(start[3], end[3] - 1)) += grad;
+    });
+}
 
 Tensor Tensor::indexSelect(const std::vector<int>& indices) const {
     if (indices.size() == 0)

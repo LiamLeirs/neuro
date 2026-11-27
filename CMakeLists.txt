@@ -60,6 +60,7 @@ add_library(neuro
     src/data/TransformDataset.cpp
     src/data/transforms/Normalize.cpp
     src/data/transforms/RandomHorizontalFlip.cpp
+    src/data/transforms/RandomCrop.cpp
 )
 
 add_library(Neuro::Neuro ALIAS neuro)
