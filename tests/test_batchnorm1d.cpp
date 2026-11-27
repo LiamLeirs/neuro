@@ -95,7 +95,7 @@ TEST(BatchNorm1DTest, RejectsInvalidInput) {
 
     Tensor empty;
     Tensor wrong_features(af::constant(1, 4, 2));
-    Tensor wrong_rank(af::constant(1, 4, 3, 2));
+    Tensor wrong_rank(af::constant(1, 4, 3, 2, 2));
     Tensor integer_input(af::constant(1, af::dim4(4, 3), s32));
     Tensor double_input(af::constant(1, af::dim4(4, 3), f64));
 
@@ -360,4 +360,85 @@ TEST(BatchNorm1DTest, RespectsNoGradGuard) {
     // Gradient tracking is independent of training mode.
     expectValues(norm.runningMean(), {2});
     expectValues(norm.runningVar(), {1});
+}
+
+TEST(BatchNorm1DTest, NormalizesThreeDimensionalInput) {
+    BatchNorm1D norm(2, 1e-5, 1.0);
+
+    // Shape: (N=2, C=2, L=2)
+    // Channel 0: [1, 3, 5, 7]
+    // Channel 1: [10, 30, 50, 70]
+    const float values[]{1, 3, 10, 30, 5, 7, 50, 70};
+
+    Tensor input(af::array(2, 2, 2, values));
+    Tensor output = norm(input);
+
+    EXPECT_EQ(output.shape(), input.shape());
+
+    const float a = 1.0 / std::sqrt(5.0 + 1e-5);
+    const float b = 1.0 / std::sqrt(500.0 + 1e-5);
+
+    expectValues(output.data(), {-3 * a, -a, -30 * b, -10 * b, a, 3 * a, 10 * b, 30 * b});
+
+    expectValues(norm.runningMean(), {4, 40});
+    expectValues(norm.runningVar(), {20.0f / 3.0f, 2000.0f / 3.0f}, 1e-4);
+}
+
+TEST(BatchNorm1DTest, SupportsSingletonBatchWithSequence) {
+    BatchNorm1D norm(1);
+
+    const float values[]{1, 3, 5};
+
+    Tensor input(af::array(1, 1, 3, values));
+
+    const float scale = 2.0 / std::sqrt(8.0 / 3.0 + 1e-5);
+
+    expectValues(norm(input).data(), {-scale, 0, scale});
+}
+
+TEST(BatchNorm1DTest, EvaluatesThreeDimensionalInput) {
+    BatchNorm1D norm(1, 1e-5, 1.0);
+
+    const float training_values[]{1, 3, 5, 7};
+
+    norm(Tensor(af::array(2, 1, 2, training_values)));
+
+    norm.eval();
+
+    const float values[]{2, 4, 6};
+    Tensor input(af::array(1, 1, 3, values));
+
+    const float scale = 1.0 / std::sqrt(20.0 / 3.0 + 1e-5);
+
+    expectValues(norm(input).data(), {-2 * scale, 0, 2 * scale});
+
+    expectValues(norm.runningMean(), {4});
+    expectValues(norm.runningVar(), {20.0f / 3.0f});
+}
+
+TEST(BatchNorm1DTest, ComputesThreeDimensionalGradients) {
+    BatchNorm1D norm(1);
+
+    const float values[]{1, 3, 5, 7};
+    const float weights[]{1, -2, 3, 4};
+
+    Tensor input(af::array(2, 1, 2, values), true);
+    Tensor upstream(af::array(2, 1, 2, weights));
+
+    (norm(input) * upstream).sum().backward();
+
+    const double inv_std = 1.0 / std::sqrt(5.0 + 1e-5);
+
+    std::vector<float> expected;
+
+    for (int i = 0; i < 4; ++i) {
+        const double centered = values[i] - 4.0;
+
+        expected.push_back(static_cast<float>(
+            inv_std * (weights[i] - 1.5 - centered * 14.0 / (4.0 * (5.0 + 1e-5)))));
+    }
+
+    expectValues(input.grad(), expected);
+    expectValues(norm.gamma().grad(), {static_cast<float>(14.0 * inv_std)});
+    expectValues(norm.beta().grad(), {6});
 }

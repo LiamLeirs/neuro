@@ -52,6 +52,7 @@ add_library(neuro
     src/viz/SvgDocument.cpp
     src/viz/Plot.cpp
     src/nn/BatchNorm1D.cpp
+    src/nn/BatchNormBase.cpp
 )
 
 add_library(Neuro::Neuro ALIAS neuro)
