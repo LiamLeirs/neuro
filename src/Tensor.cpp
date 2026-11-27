@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <initializer_list>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -370,6 +371,40 @@ Tensor Tensor::flatten() const {
     const auto feature_length = dims[1] * dims[2] * dims[3];
 
     return reshape(af::dim4(batch_size, feature_length));
+}
+
+Tensor Tensor::pad(const af::dim4& lower, const af::dim4& upper) const {
+    if (impl_->data_.elements() == 0) {
+        throw std::invalid_argument("Tensor is empty");
+    }
+    bool has_padding = false;
+    for (std::size_t i = 0; i < 4; i++) {
+        if (lower[i] < 0 || upper[i] < 0) {
+            throw std::invalid_argument("Padding values must be non-negative");
+        }
+        if (lower[i] > 0 || upper[i] > 0) {
+            has_padding = true;
+        }
+    }
+    if (!has_padding) {
+        return *this;
+    }
+
+    auto parent = impl_;
+    af::dim4 input_shape = parent->data_.dims();
+    af::array result = af::pad(impl_->data_, lower, upper, AF_PAD_ZERO);
+    return makeResult(result, {parent}, [parent, lower, input_shape](const af::array& grad) {
+        if (parent->requires_grad_) {
+            af::dim4 end;
+
+            for (int i = 0; i < 4; ++i) {
+                end[i] = lower[i] + input_shape[i] - 1;
+            }
+
+            parent->grad_ += grad(af::seq(lower[0], end[0]), af::seq(lower[1], end[1]),
+                                  af::seq(lower[2], end[2]), af::seq(lower[3], end[3]));
+        }
+    });
 }
 
 Tensor Tensor::matmul(const Tensor& other) const {

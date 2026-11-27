@@ -41,6 +41,7 @@ add_executable(neuro_tests
     test_flip.cpp
     test_where.cpp
     test_random_horizontal_flip.cpp
+    test_pad.cpp
 )
 
 target_link_libraries(neuro_tests

@@ -37,6 +37,7 @@ public:
     Tensor operator/(double scalar) const;
     Tensor operator[](int index) const;
 
+    Tensor pad(const af::dim4& lower, const af::dim4& upper) const;
     Tensor flatten() const;
     Tensor reorder(int d0, int d1, int d2, int d3) const;
     Tensor flip(int dim) const;
