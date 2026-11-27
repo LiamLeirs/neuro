@@ -217,3 +217,107 @@ TEST(AdamTest, RejectsNonFiniteHyperparameters) {
 
     EXPECT_THROW(Adam({parameter}, 0.01, 0.9, 0.999, inf), std::invalid_argument);
 }
+
+TEST(Adam, RejectsInvalidWeightDecay) {
+    Tensor param({2.0f}, true);
+
+    EXPECT_THROW(Adam({param}, 0.1, 0.9, 0.999, 1e-8, -0.01), std::invalid_argument);
+
+    EXPECT_THROW(Adam({param}, 0.1, 0.9, 0.999, 1e-8, std::numeric_limits<double>::infinity()),
+                 std::invalid_argument);
+
+    EXPECT_THROW(Adam({param}, 0.1, 0.9, 0.999, 1e-8, std::numeric_limits<double>::quiet_NaN()),
+                 std::invalid_argument);
+}
+
+TEST(Adam, ZeroWeightDecayPreservesUpdate) {
+    Tensor param1({2.0f}, true);
+    Tensor param2({2.0f}, true);
+
+    Adam optimizer1({param1}, 0.1);
+    Adam optimizer2({param2}, 0.1, 0.9, 0.999, 1e-8, 0.0);
+
+    for (int step = 0; step < 5; ++step) {
+        optimizer1.zeroGrad();
+        optimizer2.zeroGrad();
+
+        (param1 * 3.0).sum().backward();
+        (param2 * 3.0).sum().backward();
+
+        optimizer1.step();
+        optimizer2.step();
+
+        EXPECT_NEAR(param1.data().scalar<float>(), 2.0 - 0.1 * (step + 1), 1e-5);
+
+        EXPECT_FLOAT_EQ(param1.data().scalar<float>(), param2.data().scalar<float>());
+    }
+}
+
+TEST(Adam, AppliesCoupledWeightDecayAcrossMultipleSteps) {
+    constexpr double lr = 0.1;
+    constexpr double b1 = 0.5;
+    constexpr double b2 = 0.5;
+    constexpr double eps = 1e-8;
+    constexpr double decay = 0.2;
+
+    Tensor param({2.0f}, true);
+    Adam optimizer({param}, lr, b1, b2, eps, decay);
+
+    double expected = 2.0;
+    double m = 0.0;
+    double v = 0.0;
+
+    const double gradients[]{3.0, -1.0, 0.5, -2.0, 0.0};
+
+    for (int t = 1; t <= 5; ++t) {
+        optimizer.zeroGrad();
+
+        const double g = gradients[t - 1];
+
+        (param * g).sum().backward();
+
+        optimizer.step();
+
+        const double effective_grad = g + decay * expected;
+
+        m = b1 * m + (1.0 - b1) * effective_grad;
+        v = b2 * v + (1.0 - b2) * effective_grad * effective_grad;
+
+        const double m_hat = m / (1.0 - std::pow(b1, t));
+        const double v_hat = v / (1.0 - std::pow(b2, t));
+
+        expected -= lr * m_hat / (std::sqrt(v_hat) + eps);
+
+        EXPECT_NEAR(param.data().scalar<float>(), expected, 1e-5) << "Step: " << t;
+    }
+}
+
+TEST(Adam, WeightDecayShrinksParametersWithZeroGradient) {
+    Tensor param({2.0f, -4.0f}, true);
+    Adam optimizer({param}, 0.1, 0.9, 0.999, 1e-8, 0.2);
+
+    (param * 0.0).sum().backward();
+
+    optimizer.step();
+
+    float values[2];
+    param.data().host(values);
+
+    EXPECT_NEAR(values[0], 1.9, 1e-6);
+    EXPECT_NEAR(values[1], -3.9, 1e-6);
+}
+
+TEST(Adam, WeightDecayDoesNotModifyGradients) {
+    Tensor param({2.0f, -4.0f}, true);
+    Adam optimizer({param}, 0.1, 0.9, 0.999, 1e-8, 0.2);
+
+    (param * 3.0).sum().backward();
+
+    optimizer.step();
+
+    float gradients[2];
+    param.grad().host(gradients);
+
+    EXPECT_FLOAT_EQ(gradients[0], 3.0f);
+    EXPECT_FLOAT_EQ(gradients[1], 3.0f);
+}

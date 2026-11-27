@@ -10,8 +10,10 @@
 
 namespace neuro {
 
-Adam::Adam(std::vector<Tensor> parameters, double lr, double b1, double b2, double eps)
-    : Optimizer(std::move(parameters), lr), b1_(b1), b2_(b2), eps_(eps) {
+Adam::Adam(std::vector<Tensor> parameters, double lr, double b1, double b2, double eps,
+           double weight_decay)
+    : Optimizer(std::move(parameters), lr), b1_(b1), b2_(b2), eps_(eps),
+      weight_decay_(weight_decay) {
     if (b1 >= 1 || b1 < 0 || b2 >= 1 || b2 < 0) {
         throw std::invalid_argument("Beta values must be in [0, 1)");
     }
@@ -20,6 +22,9 @@ Adam::Adam(std::vector<Tensor> parameters, double lr, double b1, double b2, doub
     }
     if (!std::isfinite(b1) || !std::isfinite(b2) || !std::isfinite(eps)) {
         throw std::invalid_argument("Eps, b1 and b2 must be finite");
+    }
+    if (weight_decay_ < 0 || !std::isfinite(weight_decay_)) {
+        throw std::invalid_argument("Weight decay must be non-negative and finite");
     }
     for (const Tensor& param : parameters_) {
         m_.push_back(af::constant(0, param.shape(), param.data().type()));
@@ -35,8 +40,14 @@ void Adam::step() {
         if (!requiresGrad(parameters_[i]))
             continue;
 
-        m_[i] = b1_ * m_[i] + (1 - b1_) * grad(parameters_[i]);
-        v_[i] = b2_ * v_[i] + (1 - b2_) * grad(parameters_[i]) * grad(parameters_[i]);
+        af::array effective_grad = grad(parameters_[i]);
+
+        if (weight_decay_ != 0.0) {
+            effective_grad = effective_grad + weight_decay_ * data(parameters_[i]);
+        }
+
+        m_[i] = b1_ * m_[i] + (1 - b1_) * effective_grad;
+        v_[i] = b2_ * v_[i] + (1 - b2_) * effective_grad * effective_grad;
 
         af::array m_t = (m_[i] / d1);
         af::array v_t = (v_[i] / d2);
