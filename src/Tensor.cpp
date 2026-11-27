@@ -18,6 +18,7 @@
 #include <af/signal.h>
 #include <af/statistics.h>
 #include <af/util.h>
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <memory>
@@ -343,6 +344,21 @@ Tensor Tensor::reorder(int d0, int d1, int d2, int d3) const {
         if (parent->requires_grad_) {
             parent->grad_ +=
                 af::reorder(grad, inversePerm[0], inversePerm[1], inversePerm[2], inversePerm[3]);
+        }
+    });
+}
+
+Tensor Tensor::flip(int dim) const {
+    if (dim < 0 || dim > 3) {
+        throw std::invalid_argument("Dimensions must be between 0 and 3");
+    }
+    if (impl_->data_.elements() == 0) {
+        throw std::invalid_argument("Cannot flip an empty tensor");
+    }
+    auto parent = impl_;
+    return makeResult(af::flip(impl_->data_, dim), {parent}, [parent, dim](const af::array& grad) {
+        if (parent->requires_grad_) {
+            parent->grad_ += af::flip(grad, dim);
         }
     });
 }
@@ -1138,6 +1154,40 @@ Tensor Tensor::dropout(double p) const {
     af::array rand = af::randu(shape(), type);
     Tensor mask((rand >= p).as(type), false);
     return (*this * mask) * (1.0 / (1.0 - p));
+}
+
+Tensor Tensor::where(const Tensor& condition, const Tensor& x, const Tensor& y) {
+    if (condition.data().elements() == 0 || x.data().elements() == 0 || y.data().elements() == 0) {
+        throw std::invalid_argument("Tensor is empty");
+    }
+
+    if (condition.data().type() != b8) {
+        throw std::invalid_argument("Condition must be of boolean type");
+    }
+
+    if (x.data().type() != y.data().type()) {
+        throw std::invalid_argument("Input tensors must have the same dtype");
+    }
+
+    const auto x_shape = x.shape();
+    const auto y_shape = y.shape();
+
+    af::array mask = condition.data();
+    af::array result = af::select(mask, x.data(), y.data());
+
+    auto x_parent = x.impl_;
+    auto y_parent = y.impl_;
+
+    return makeResult(result, {x_parent, y_parent},
+                      [x_parent, y_parent, mask, x_shape, y_shape](const af::array& grad) {
+                          if (x_parent->requires_grad_) {
+                              x_parent->grad_ += sumToShape(af::select(mask, grad, 0.0), x_shape);
+                          }
+
+                          if (y_parent->requires_grad_) {
+                              y_parent->grad_ += sumToShape(af::select(mask, 0.0, grad), y_shape);
+                          }
+                      });
 }
 
 } // namespace neuro

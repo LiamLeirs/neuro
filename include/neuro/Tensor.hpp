@@ -39,6 +39,7 @@ public:
 
     Tensor flatten() const;
     Tensor reorder(int d0, int d1, int d2, int d3) const;
+    Tensor flip(int dim) const;
     Tensor reshape(const af::dim4& dims) const;
     Tensor matmul(const Tensor& other) const;
     Tensor sum(int dim) const;
@@ -73,6 +74,8 @@ public:
     Tensor softmax(int dim) const;
     Tensor logSoftmax(int dim) const;
     Tensor dropout(double p = 0.5) const;
+
+    static Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y);
 
     void backward();
     void zeroGrad();

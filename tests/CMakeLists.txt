@@ -38,6 +38,9 @@ add_executable(neuro_tests
     test_compose.cpp
     test_transform_dataset.cpp
     test_normalize.cpp
+    test_flip.cpp
+    test_where.cpp
+    test_random_horizontal_flip.cpp
 )
 
 target_link_libraries(neuro_tests
