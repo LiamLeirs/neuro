@@ -3,7 +3,6 @@
 #include "neuro/Tensor.hpp"
 #include "neuro/nn/BatchNormBase.hpp"
 
-#include <af/data.h>
 #include <af/defines.h>
 #include <af/dim4.hpp>
 #include <stdexcept>
