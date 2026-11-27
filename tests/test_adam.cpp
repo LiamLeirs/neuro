@@ -1,7 +1,7 @@
 
 #include "neuro/Tensor.hpp"
 #include "neuro/optim/Adam.hpp"
-#include "neuro/optim/Optimizer.hpp"
+#include "neuro/optim/AdamW.hpp"
 
 #include <arrayfire.h>
 #include <cmath>
@@ -218,7 +218,7 @@ TEST(AdamTest, RejectsNonFiniteHyperparameters) {
     EXPECT_THROW(Adam({parameter}, 0.01, 0.9, 0.999, inf), std::invalid_argument);
 }
 
-TEST(Adam, RejectsInvalidWeightDecay) {
+TEST(AdamTest, RejectsInvalidWeightDecay) {
     Tensor param({2.0f}, true);
 
     EXPECT_THROW(Adam({param}, 0.1, 0.9, 0.999, 1e-8, -0.01), std::invalid_argument);
@@ -230,7 +230,7 @@ TEST(Adam, RejectsInvalidWeightDecay) {
                  std::invalid_argument);
 }
 
-TEST(Adam, ZeroWeightDecayPreservesUpdate) {
+TEST(AdamTest, ZeroWeightDecayPreservesUpdate) {
     Tensor param1({2.0f}, true);
     Tensor param2({2.0f}, true);
 
@@ -253,7 +253,7 @@ TEST(Adam, ZeroWeightDecayPreservesUpdate) {
     }
 }
 
-TEST(Adam, AppliesCoupledWeightDecayAcrossMultipleSteps) {
+TEST(AdamTest, AppliesCoupledWeightDecayAcrossMultipleSteps) {
     constexpr double lr = 0.1;
     constexpr double b1 = 0.5;
     constexpr double b2 = 0.5;
@@ -292,7 +292,7 @@ TEST(Adam, AppliesCoupledWeightDecayAcrossMultipleSteps) {
     }
 }
 
-TEST(Adam, WeightDecayShrinksParametersWithZeroGradient) {
+TEST(AdamTest, WeightDecayShrinksParametersWithZeroGradient) {
     Tensor param({2.0f, -4.0f}, true);
     Adam optimizer({param}, 0.1, 0.9, 0.999, 1e-8, 0.2);
 
@@ -307,7 +307,7 @@ TEST(Adam, WeightDecayShrinksParametersWithZeroGradient) {
     EXPECT_NEAR(values[1], -3.9, 1e-6);
 }
 
-TEST(Adam, WeightDecayDoesNotModifyGradients) {
+TEST(AdamTest, WeightDecayDoesNotModifyGradients) {
     Tensor param({2.0f, -4.0f}, true);
     Adam optimizer({param}, 0.1, 0.9, 0.999, 1e-8, 0.2);
 
@@ -320,4 +320,148 @@ TEST(Adam, WeightDecayDoesNotModifyGradients) {
 
     EXPECT_FLOAT_EQ(gradients[0], 3.0f);
     EXPECT_FLOAT_EQ(gradients[1], 3.0f);
+}
+
+TEST(AdamWTest, RejectsInvalidWeightDecay) {
+    Tensor parameter({2.0f}, true);
+
+    const double inf = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+
+    EXPECT_THROW(AdamW({parameter}, 0.1, 0.9, 0.999, 1e-8, -0.01), std::invalid_argument);
+
+    EXPECT_THROW(AdamW({parameter}, 0.1, 0.9, 0.999, 1e-8, inf), std::invalid_argument);
+
+    EXPECT_THROW(AdamW({parameter}, 0.1, 0.9, 0.999, 1e-8, nan), std::invalid_argument);
+}
+
+TEST(AdamWTest, UsesDefaultWeightDecay) {
+    Tensor parameter({2.0f}, true);
+    AdamW optimizer({parameter}, 0.1);
+
+    backwardWithGradient(parameter, 0.0);
+    optimizer.step();
+
+    EXPECT_NEAR(scalarValue(parameter), 1.998, kTolerance);
+}
+
+TEST(AdamWTest, MatchesAdamWithoutWeightDecay) {
+    Tensor first({2.0f}, true);
+    Tensor second({2.0f}, true);
+
+    Adam adam({first}, 0.1);
+    AdamW adamw({second}, 0.1, 0.9, 0.999, 1e-8, 0.0);
+
+    const double gradients[]{0.5, -0.25, 1.0, 0.0, -0.75};
+
+    for (double gradient : gradients) {
+        adam.zeroGrad();
+        adamw.zeroGrad();
+
+        backwardWithGradient(first, gradient);
+        backwardWithGradient(second, gradient);
+
+        adam.step();
+        adamw.step();
+
+        EXPECT_NEAR(scalarValue(first), scalarValue(second), kTolerance);
+    }
+}
+
+TEST(AdamWTest, AppliesProportionalDecayWithZeroGradient) {
+    Tensor parameter({2.0f, -4.0f}, true);
+    AdamW optimizer({parameter}, 0.1, 0.9, 0.999, 1e-8, 0.2);
+
+    backwardWithGradient(parameter, 0.0);
+    optimizer.step();
+
+    float values[2];
+    parameter.data().host(values);
+
+    EXPECT_NEAR(values[0], 1.96, kTolerance);
+    EXPECT_NEAR(values[1], -3.92, kTolerance);
+}
+
+TEST(AdamWTest, AppliesDecoupledWeightDecayAcrossMultipleSteps) {
+    constexpr double lr = 0.1;
+    constexpr double decay = 0.2;
+
+    Tensor parameter({2.0f}, true);
+    AdamW optimizer({parameter}, lr, 0.9, 0.999, 1e-8, decay);
+
+    ReferenceAdam reference{.value = 2.0, .lr = lr};
+
+    const double gradients[]{3.0, -1.0, 0.5, -2.0, 0.0};
+
+    for (double gradient : gradients) {
+        optimizer.zeroGrad();
+
+        backwardWithGradient(parameter, gradient);
+        optimizer.step();
+
+        reference.value *= 1.0 - lr * decay;
+        reference.step(gradient);
+
+        EXPECT_NEAR(scalarValue(parameter), reference.value, kTolerance);
+    }
+}
+
+TEST(AdamWTest, WeightDecayDoesNotInfluenceMoments) {
+    constexpr double lr = 0.1;
+    constexpr double decay = 0.2;
+
+    Tensor first({2.0f}, true);
+    Tensor second({2.0f}, true);
+
+    Adam adam({first}, lr);
+    AdamW adamw({second}, lr, 0.9, 0.999, 1e-8, decay);
+
+    const double gradients[]{0.5, -0.25, 0.0, 1.0, -0.75};
+
+    for (double gradient : gradients) {
+        adam.zeroGrad();
+        adamw.zeroGrad();
+
+        backwardWithGradient(first, gradient);
+        backwardWithGradient(second, gradient);
+
+        const double beforeAdam = scalarValue(first);
+        const double beforeAdamW = scalarValue(second);
+
+        adam.step();
+        adamw.step();
+
+        const double adamUpdate = beforeAdam - scalarValue(first);
+
+        const double adamwAdaptiveUpdate = beforeAdamW * (1.0 - lr * decay) - scalarValue(second);
+
+        EXPECT_NEAR(adamUpdate, adamwAdaptiveUpdate, kTolerance);
+    }
+}
+
+TEST(AdamWTest, WeightDecayDoesNotModifyGradients) {
+    Tensor parameter({2.0f, -4.0f}, true);
+    AdamW optimizer({parameter}, 0.1, 0.9, 0.999, 1e-8, 0.2);
+
+    backwardWithGradient(parameter, 3.0);
+    optimizer.step();
+
+    float gradients[2];
+    parameter.grad().host(gradients);
+
+    EXPECT_FLOAT_EQ(gradients[0], 3.0f);
+    EXPECT_FLOAT_EQ(gradients[1], 3.0f);
+}
+
+TEST(AdamWTest, IgnoresParametersWithoutGradientTracking) {
+    Tensor frozen({1.0f}, false);
+    Tensor trainable({2.0f}, true);
+
+    AdamW optimizer({frozen, trainable}, 0.1, 0.9, 0.999, 1e-8, 0.2);
+
+    backwardWithGradient(trainable, 0.5);
+    optimizer.step();
+
+    EXPECT_FLOAT_EQ(scalarValue(frozen), 1.0f);
+    EXPECT_NEAR(scalarValue(trainable), 1.86, kTolerance);
 }

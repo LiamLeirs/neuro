@@ -54,6 +54,8 @@ add_library(neuro
     src/nn/BatchNorm1D.cpp
     src/nn/BatchNorm2D.cpp
     src/nn/BatchNormBase.cpp
+    src/optim/AdamBase.cpp
+    src/optim/AdamW.cpp
 )
 
 add_library(Neuro::Neuro ALIAS neuro)
