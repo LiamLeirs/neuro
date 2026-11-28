@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-28
+
+Training utilities, regularization and improved generalization.
+
+### Added
+
+- Differentiable tensor mean reductions, variance and square root operations.
+- Differentiable dropout, padding, slicing, cropping, flipping and conditional selection.
+- Optimized batched tensor cropping with independent offsets per sample.
+- Dropout, BatchNorm1D and BatchNorm2D neural network modules.
+- Training and evaluation modes with recursive propagation through sequential models.
+- Weight decay support for SGD and Adam.
+- AdamW optimizer with decoupled weight decay.
+- Configurable optimizer learning rates.
+- StepLR, ExponentialLR, CosineAnnealingLR and ReduceLROnPlateau learning rate schedulers.
+- Dataset transform abstraction and composable transformation pipelines.
+- Normalize, RandomHorizontalFlip and RandomCrop transforms.
+- TransformDataset with separate input and target transformations.
+- Optimized batch transformations with per-sample fallback.
+- Direct construction of TransformDataset using concrete transforms.
+- Per-epoch validation with separate training and validation metrics.
+- Learning rate tracking in training history.
+- EarlyStopping with configurable patience, improvement threshold and metric monitoring.
+- Trainer integration for learning rate schedulers and early stopping.
+- Unit tests for regularization, augmentation, optimizers, schedulers and training utilities.
+
+### Changed
+
+- Trainer automatically switches between training and evaluation modes.
+- Updated the CIFAR-10 example with batch normalization, dropout, data augmentation, AdamW and cosine learning rate scheduling.
+- Introduced a separate validation split in the CIFAR-10 example.
+- Improved CIFAR-10 test accuracy from 73.24% to 84.09% in local training runs.
+- Extended CIFAR-10 visualization with validation metrics and learning rate curves.
+- Expanded documentation to cover the new training and regularization features.
+
 ## [0.2.0] - 2026-11-26
 
 Convolutional neural networks and basic visualization.

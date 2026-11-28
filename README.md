@@ -23,11 +23,11 @@ Neuro is currently in early development and targets Linux systems with either a 
 - **GPU-accelerated tensors** — Tensor arithmetic, broadcasting, matrix multiplication, reductions, indexing, reshaping and dimension reordering powered by ArrayFire.
 - **Configurable backend** — CUDA acceleration by default, with CPU support selected at build time.
 - **Automatic differentiation** — Dynamic computational graphs, reverse-mode gradient propagation and gradient tracking control.
-- **Neural networks** — Fully connected and convolutional layers, pooling, flattening, activation functions and composable sequential models.
-- **Optimizers** — Stochastic Gradient Descent (SGD) and Adam.
+- **Neural networks** — Fully connected and convolutional layers, pooling, flattening, activation functions, dropout, batch normalization and composable sequential models.
+- **Optimizers** — Stochastic Gradient Descent (SGD), Adam and AdamW, with weight decay support.
 - **Loss functions** — Mean Squared Error (MSE), Mean Absolute Error (MAE) and Cross-Entropy Loss.
-- **Data utilities** — Dataset abstractions, batched data loading, shuffling and optimized MNIST and CIFAR-10 data loading.
-- **Training utilities** — Reusable training and evaluation loops, extensible metrics and training history.
+- **Data utilities** — Dataset abstractions, batched data loading, shuffling and optimized MNIST and CIFAR-10 data loading, composable transforms, normalization and random image augmentation.
+- **Training utilities** — Reusable training and evaluation loops, per-epoch validation, extensible metrics, learning rate scheduling, early stopping and training history.
 - **Visualization** — Custom SVG plotting with automatic ticks, grid lines, legends, training history integration and Linux display support.
 - **CMake integration** — Installable CMake package with support for `find_package(Neuro)`.
 - **Unit testing** — GoogleTest coverage of tensor operations, automatic differentiation, neural network components, datasets, training utilities and visualization.
@@ -101,6 +101,53 @@ int main() {
 ```
 
 The example trains a small multilayer perceptron to learn the XOR function. Gradient computation, parameter updates and loss tracking are handled automatically by the Trainer.
+
+### Validation, Scheduling and Early Stopping
+
+Trainer supports a separate validation loader and optional learning rate scheduling and early stopping.
+
+```cpp
+// After constructing a model, optimizer, trainer and data loaders:
+CosineAnnealingLR scheduler(optimizer, 50, 1e-5);
+EarlyStopping stopping(PlateauMode::Min, 10);
+
+trainer.setScheduler(scheduler);
+trainer.setEarlyStopping(stopping, "val_loss");
+
+auto history = trainer.fit(train_loader, val_loader, 50);
+```
+
+Training history includes training metrics, validation metrics prefixed with `val_`, and the learning rate used during each epoch (`lr`). StepLR, ExponentialLR, CosineAnnealingLR and ReduceLROnPlateau are supported. Metric-based scheduling and early stopping can monitor loss or registered training and validation metrics.
+
+Trainer borrows the scheduler and EarlyStopping instances; they must remain alive while registered and in use. EarlyStopping state persists across calls to `fit()`. Call `reset()` on the EarlyStopping instance to resume after stopping, or detach it using `clearEarlyStopping()`. The stopping epoch is included in the history. Best weights are not automatically restored.
+
+### Dataset Transforms
+
+Transforms can be composed and applied lazily to dataset samples or batches. For example, a CIFAR-10 training pipeline can use:
+
+```cpp
+#include <neuro/data/TransformDataset.hpp>
+#include <neuro/data/transforms/Compose.hpp>
+#include <neuro/data/transforms/RandomCrop.hpp>
+#include <neuro/data/transforms/RandomHorizontalFlip.hpp>
+#include <neuro/data/transforms/Normalize.hpp>
+
+using namespace neuro;
+using namespace neuro::transforms;
+
+// Given an existing CIFAR-10 training dataset:
+TransformDataset train(
+    train_dataset,
+    Compose(
+        RandomCrop(32, 32, 4),
+        RandomHorizontalFlip(0.5),
+        Normalize({0.4914f, 0.4822f, 0.4465f},
+                  {0.2470f, 0.2435f, 0.2616f})
+    )
+);
+```
+
+Validation and test datasets should use normalization without random augmentation. TransformDataset borrows the underlying dataset and owns its transforms. Batch-capable pipelines use optimized batch processing; other pipelines fall back to individual samples.
 
 ### Visualizing Training History
 
@@ -240,7 +287,7 @@ Once Neuro is installed, it can be integrated into any CMake-based C++ project u
 ```cmake
 cmake_minimum_required(VERSION 3.24)
 project(my_project LANGUAGES CXX)
-find_package(Neuro 0.2 CONFIG REQUIRED)
+find_package(Neuro 0.3 CONFIG REQUIRED)
 add_executable(my_app main.cpp)
 target_link_libraries(my_app PRIVATE Neuro::Neuro)
 ```
@@ -373,7 +420,7 @@ Run the MNIST example from the repository root to ensure the dataset files can b
 
 Neuro supports differentiable convolution and pooling operations, NCHW image batches and convolutional modules. The MNIST dataset supports both flattened and image layouts.
 
-The CIFAR-10 example uses three convolutional blocks with ReLU and max pooling, followed by flattening and two fully connected layers. It trains using Adam and Cross-Entropy Loss and exports training loss and accuracy as SVG files.
+The CIFAR-10 example uses three convolutional blocks with batch normalization, ReLU and max pooling, followed by flattening, a fully connected hidden layer with batch normalization and dropout, and a classification layer. It trains using AdamW, cosine learning rate annealing and Cross-Entropy Loss, with random cropping, horizontal flipping and normalization. Training and validation loss, accuracy and learning rate are exported as SVG files.
 
 #### Example Results
 
@@ -381,7 +428,8 @@ The CIFAR-10 example uses three convolutional blocks with ReLU and max pooling, 
 |---------|-------|--------------:|----------:|
 | MNIST | MLP | 97.57% | 0.0815 |
 | MNIST | CNN | 98.82% | 0.0351 |
-| CIFAR-10 | CNN | 73.24% | 1.3498 |
+| CIFAR-10 | CNN (v0.2.0) | 73.24% | 1.3498 |
+| CIFAR-10 | CNN (v0.3.0) | **84.09%** | 0.4668 |
 
 These are results from individual local training runs, not formal performance benchmarks. Results may vary between runs.
 
@@ -389,14 +437,24 @@ These are results from individual local training runs, not formal performance be
 
 | Parameter | Value |
 |-----------|-------|
-| Training samples | 50,000 |
+| Training samples | 40,000 |
+| Validation samples | 10,000 |
 | Test samples | 10,000 |
-| Trainable parameters | 356,810 |
-| Optimizer | Adam |
-| Learning rate | 0.001 |
+| Trainable parameters | 357,514 |
+| Optimizer | AdamW |
+| Weight decay | 0.0001 |
+| Initial learning rate | 0.001 |
+| Scheduler | CosineAnnealingLR |
+| Minimum learning rate | 0.00001 |
+| Dropout | 0.5 |
+| Augmentation | Random crop (padding 4), horizontal flip (p = 0.5) |
 | Batch size | 128 |
-| Epochs | 20 |
+| Epochs | 50 |
 | Loss function | Cross-Entropy Loss |
+
+The first four CIFAR-10 training batches are used for training, the fifth for validation, and the separate test batch for final evaluation. Normalization uses reference statistics from the full original training set. The test set is not used for training or validation.
+
+The v0.3.0 run took 27 minutes and 16 seconds on an RTX 3070 and reached 84.09% test accuracy, an improvement of 10.85 percentage points over v0.2.0. The comparison is not a controlled ablation: the training split, architecture, augmentation, optimizer and epoch count differ.
 
 #### CIFAR-10 Dataset Setup
 
@@ -420,7 +478,9 @@ Neuro includes a comprehensive unit test suite built with GoogleTest. The tests 
 - Neural network layers and activation functions
 - Loss functions and optimizers
 - Datasets and data loading
-- Metrics and training utilities
+- Metrics, validation, learning rate schedulers and early stopping
+- Dataset transforms and image augmentation
+- Dropout and batch normalization
 - Convolution, pooling and image layouts
 - SVG serialization, plotting and display error handling
 - Input validation and error handling
@@ -476,7 +536,7 @@ The current release has the following limitations:
 - **Neural network architectures** — Fully connected and convolutional networks are supported. Recurrent and attention-based layers are not yet supported.
 - **GPU computation** — GPU operations rely on ArrayFire rather than custom CUDA kernels.
 - **Model persistence** — Model serialization and training checkpointing are not yet supported.
-- **Training features** — Advanced features such as learning rate scheduling, dropout and batch normalization are not yet implemented.
+- **Training features** — Early stopping retains the model from the stopping epoch; automatic restoration of the best model and general training callbacks are not yet supported.
 - **Visualization** — SVG line plots and Linux display are supported; native tensor image and feature map visualization are not yet implemented.
 - **Performance** — No formal performance benchmarks against established deep learning frameworks have been conducted.
 - **API stability** — The public API is experimental and may change between minor releases.
@@ -489,20 +549,24 @@ Neuro is under active development, with future releases focusing on expanding ne
 
 - [x] Convolutional layers
 - [x] Pooling layers
-- [ ] Dropout
-- [ ] Batch normalization
+- [x] Dropout
+- [x] Batch normalization
+- [ ] Custom module composition and registration
+- [ ] Residual networks
 - [ ] Additional activation and loss functions
 - [ ] Recurrent layers
 - [ ] Attention mechanisms
 
 ### Training and Optimization
 
-- [ ] Training and evaluation modes
-- [ ] Per-epoch validation
-- [ ] Dataset transforms and augmentation
-- [ ] Learning rate schedulers
+- [x] Training and evaluation modes
+- [x] Per-epoch validation
+- [x] Dataset transforms and augmentation
+- [x] Learning rate schedulers
+- [x] Early stopping
 - [ ] Model serialization
 - [ ] Training checkpoints
+- [x] AdamW and weight decay
 - [ ] Additional optimizers
 - [ ] Training callbacks
 
@@ -527,7 +591,7 @@ Neuro is under active development, with future releases focusing on expanding ne
 - [ ] Additional examples and tutorials
 - [ ] Extended platform support
 
-The next major development milestone is improved training and generalization, including dropout, batch normalization, validation history and learning rate scheduling.
+The next development milestone is model architecture and persistence, including custom module composition, recursive parameter and buffer registration, residual networks, model serialization and training checkpoints.
 
 ## License
 
