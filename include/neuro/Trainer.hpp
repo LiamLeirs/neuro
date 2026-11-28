@@ -7,6 +7,7 @@
 #include "neuro/optim/LRScheduler.hpp"
 #include "neuro/optim/Optimizer.hpp"
 #include "neuro/optim/ReduceLROnPlateau.hpp"
+#include "neuro/training/EarlyStopping.hpp"
 
 #include <cstddef>
 #include <functional>
@@ -49,6 +50,10 @@ public:
 
     void clearScheduler() noexcept;
 
+    void setEarlyStopping(EarlyStopping& early_stopping, std::string monitor = "val_loss");
+
+    void clearEarlyStopping() noexcept;
+
 private:
     nn::Module& model_;
     Optimizer& optim_;
@@ -73,7 +78,11 @@ private:
 
     std::string scheduler_monitor_;
 
-    void validateSchedulerMonitor(bool has_validation) const;
+    void validateMonitor(const std::string& monitor, bool has_validation) const;
+
+    EarlyStopping* early_stopping_ = nullptr;
+
+    std::string early_stopping_monitor_;
 };
 
 } // namespace neuro

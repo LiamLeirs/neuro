@@ -4,6 +4,7 @@
 #include "neuro/Trainer.hpp"
 #include "neuro/data/DataLoader.hpp"
 #include "neuro/data/TensorDataset.hpp"
+#include "neuro/metrics/Accuracy.hpp"
 #include "neuro/metrics/Metric.hpp"
 #include "neuro/nn/Linear.hpp"
 #include "neuro/nn/loss/MSELoss.hpp"
@@ -903,4 +904,173 @@ TEST_F(TrainerTest, FailedPlateauRegistrationPreservesExistingScheduler) {
     trainer.fit(loader, 1);
 
     EXPECT_DOUBLE_EQ(optim.learningRate(), 0.005);
+}
+
+TEST_F(TrainerTest, EarlyStoppingTerminatesTraining) {
+    optim.setLearningRate(0.0);
+
+    EarlyStopping stopping(PlateauMode::Min, 2);
+    trainer.setEarlyStopping(stopping, "loss");
+
+    auto history = trainer.fit(loader, 10);
+
+    EXPECT_EQ(history.size(), 3u);
+    EXPECT_TRUE(stopping.shouldStop());
+}
+
+TEST_F(TrainerTest, EarlyStoppingMonitorsValidationLoss) {
+    optim.setLearningRate(0.0);
+
+    EarlyStopping stopping(PlateauMode::Min, 2);
+    trainer.setEarlyStopping(stopping);
+
+    auto history = trainer.fit(loader, loader, 10);
+
+    ASSERT_EQ(history.size(), 3u);
+    EXPECT_TRUE(history.back().contains("val_loss"));
+    EXPECT_TRUE(stopping.shouldStop());
+}
+
+TEST_F(TrainerTest, EarlyStoppingSupportsCustomMetrics) {
+    trainer.addMetric<SampleCountMetric>("sample_count");
+
+    EarlyStopping stopping(PlateauMode::Max, 2);
+    trainer.setEarlyStopping(stopping, "sample_count");
+
+    auto history = trainer.fit(loader, 10);
+
+    ASSERT_EQ(history.size(), 3u);
+    EXPECT_TRUE(stopping.shouldStop());
+    EXPECT_DOUBLE_EQ(history.back().at("sample_count"), 5.0);
+}
+
+TEST_F(TrainerTest, EarlyStoppingPersistsAcrossFitCalls) {
+    optim.setLearningRate(0.0);
+
+    EarlyStopping stopping(PlateauMode::Min, 2);
+    trainer.setEarlyStopping(stopping, "loss");
+
+    EXPECT_EQ(trainer.fit(loader, 2).size(), 2u);
+    EXPECT_FALSE(stopping.shouldStop());
+
+    EXPECT_EQ(trainer.fit(loader, 10).size(), 1u);
+    EXPECT_TRUE(stopping.shouldStop());
+
+    EXPECT_TRUE(trainer.fit(loader, 10).empty());
+}
+
+TEST_F(TrainerTest, ResetAllowsTrainingToResume) {
+    optim.setLearningRate(0.0);
+
+    EarlyStopping stopping(PlateauMode::Min, 1);
+    trainer.setEarlyStopping(stopping, "loss");
+
+    ASSERT_EQ(trainer.fit(loader, 10).size(), 2u);
+
+    stopping.reset();
+
+    EXPECT_EQ(trainer.fit(loader, 10).size(), 2u);
+    EXPECT_TRUE(stopping.shouldStop());
+}
+
+TEST_F(TrainerTest, ClearingEarlyStoppingAllowsTrainingToResume) {
+    optim.setLearningRate(0.0);
+
+    EarlyStopping stopping(PlateauMode::Min, 1);
+    trainer.setEarlyStopping(stopping, "loss");
+
+    ASSERT_EQ(trainer.fit(loader, 10).size(), 2u);
+
+    trainer.clearEarlyStopping();
+
+    EXPECT_EQ(trainer.fit(loader, 5).size(), 5u);
+    EXPECT_TRUE(stopping.shouldStop());
+}
+
+TEST_F(TrainerTest, EvaluationDoesNotUpdateEarlyStopping) {
+    optim.setLearningRate(0.0);
+
+    EarlyStopping stopping(PlateauMode::Min, 1);
+    trainer.setEarlyStopping(stopping, "loss");
+
+    trainer.fit(loader, 1);
+
+    trainer.evaluate(loader);
+    trainer.evaluate(loader);
+
+    EXPECT_FALSE(stopping.shouldStop());
+    EXPECT_EQ(trainer.fit(loader, 5).size(), 1u);
+    EXPECT_TRUE(stopping.shouldStop());
+}
+
+TEST_F(TrainerTest, ZeroEpochsDoesNotUpdateEarlyStopping) {
+    optim.setLearningRate(0.0);
+
+    EarlyStopping stopping(PlateauMode::Min, 1);
+    trainer.setEarlyStopping(stopping, "loss");
+
+    EXPECT_TRUE(trainer.fit(loader, 0).empty());
+    EXPECT_FALSE(stopping.shouldStop());
+
+    EXPECT_EQ(trainer.fit(loader, 10).size(), 2u);
+}
+
+TEST_F(TrainerTest, EarlyStoppingWorksWithEpochScheduler) {
+    optim.setLearningRate(0.01);
+
+    StepLR scheduler(optim, 1, 0.5);
+    EarlyStopping stopping(PlateauMode::Min, 2, 1e10);
+
+    trainer.setScheduler(scheduler);
+    trainer.setEarlyStopping(stopping, "loss");
+
+    auto history = trainer.fit(loader, 10);
+
+    ASSERT_EQ(history.size(), 3u);
+    EXPECT_TRUE(stopping.shouldStop());
+
+    EXPECT_NEAR(history[0].at("lr"), 0.01, 1e-10);
+    EXPECT_NEAR(history[1].at("lr"), 0.005, 1e-10);
+    EXPECT_NEAR(history[2].at("lr"), 0.0025, 1e-10);
+
+    EXPECT_NEAR(optim.learningRate(), 0.00125, 1e-10);
+}
+
+TEST_F(TrainerTest, EarlyStoppingWorksWithPlateauScheduler) {
+    optim.setLearningRate(0.01);
+
+    ReduceLROnPlateau scheduler(optim, PlateauMode::Min, 0.5, 0, 1e10);
+
+    EarlyStopping stopping(PlateauMode::Min, 2, 1e10);
+
+    trainer.setScheduler(scheduler, "loss");
+    trainer.setEarlyStopping(stopping, "val_loss");
+
+    auto history = trainer.fit(loader, loader, 10);
+
+    ASSERT_EQ(history.size(), 3u);
+    EXPECT_TRUE(stopping.shouldStop());
+    EXPECT_NEAR(optim.learningRate(), 0.0025, 1e-10);
+}
+
+TEST_F(TrainerTest, EarlyStoppingRejectsEmptyMonitor) {
+    EarlyStopping stopping;
+
+    EXPECT_THROW(trainer.setEarlyStopping(stopping, ""), std::invalid_argument);
+}
+
+TEST_F(TrainerTest, EarlyStoppingRejectsUnknownMetric) {
+    EarlyStopping stopping;
+
+    trainer.setEarlyStopping(stopping, "unknown");
+
+    EXPECT_THROW(trainer.fit(loader, 5), std::invalid_argument);
+}
+
+TEST_F(TrainerTest, EarlyStoppingRequiresValidationLoader) {
+    EarlyStopping stopping;
+
+    trainer.setEarlyStopping(stopping);
+
+    EXPECT_THROW(trainer.fit(loader, 5), std::invalid_argument);
 }

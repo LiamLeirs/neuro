@@ -28,9 +28,19 @@ TrainingHistory Trainer::fit(DataLoader& train_loader, DataLoader& val_loader,
 TrainingHistory Trainer::fitImpl(DataLoader& train_loader, DataLoader* val_loader,
                                  std::size_t num_epochs) {
 
-    validateSchedulerMonitor(val_loader != nullptr);
+    if (plateau_scheduler_) {
+        validateMonitor(scheduler_monitor_, val_loader != nullptr);
+    }
 
     TrainingHistory history;
+
+    if (early_stopping_) {
+        validateMonitor(early_stopping_monitor_, val_loader != nullptr);
+        if (early_stopping_->shouldStop()) {
+            return history;
+        }
+    }
+
     history.reserve(num_epochs);
 
     for (std::size_t epoch = 0; epoch < num_epochs; epoch++) {
@@ -52,6 +62,10 @@ TrainingHistory Trainer::fitImpl(DataLoader& train_loader, DataLoader* val_loade
             plateau_scheduler_->step(results.at(scheduler_monitor_));
         }
 
+        if (early_stopping_) {
+            early_stopping_->step(results.at(early_stopping_monitor_));
+        }
+
         if (config_.verbose) {
             std::cout << "Epoch [" << epoch + 1 << "/" << num_epochs << "]";
             for (const auto& [name, value] : results) {
@@ -61,6 +75,12 @@ TrainingHistory Trainer::fitImpl(DataLoader& train_loader, DataLoader* val_loade
         }
 
         history.push_back(std::move(results));
+        if (early_stopping_ && early_stopping_->shouldStop()) {
+            if (config_.verbose) {
+                std::cout << "Early stopping triggered\n";
+            }
+            break;
+        }
     }
     return history;
 }
@@ -178,18 +198,27 @@ void Trainer::setScheduler(ReduceLROnPlateau& scheduler, std::string monitor) {
     scheduler_ = nullptr;
 }
 
+void Trainer::setEarlyStopping(EarlyStopping& early_stopping, std::string monitor) {
+    if (monitor.empty()) {
+        throw std::invalid_argument("Monitor metric is empty");
+    }
+    early_stopping_ = &early_stopping;
+    early_stopping_monitor_ = std::move(monitor);
+}
+
+void Trainer::clearEarlyStopping() noexcept {
+    early_stopping_ = nullptr;
+    early_stopping_monitor_.clear();
+}
+
 void Trainer::clearScheduler() noexcept {
     scheduler_ = nullptr;
     plateau_scheduler_ = nullptr;
     scheduler_monitor_.clear();
 }
 
-void Trainer::validateSchedulerMonitor(bool has_validation) const {
-    if (!plateau_scheduler_) {
-        return;
-    }
-
-    std::string metric = scheduler_monitor_;
+void Trainer::validateMonitor(const std::string& monitor, bool has_validation) const {
+    std::string metric = monitor;
 
     if (metric.starts_with("val_")) {
         if (!has_validation) {
