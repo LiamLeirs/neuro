@@ -352,3 +352,48 @@ TEST(TransformDatasetTest, CanReuseUnderlyingDataset) {
     expectValues(second.get(0).input, {21.0f});
     expectValues(dataset.get(0).input, {1.0f});
 }
+
+TEST(TransformDatasetTest, AcceptsConcreteInputTransform) {
+    TrackingDataset dataset;
+
+    TransformDataset transformed(
+        dataset, Compose(TrackingTransform(10.0, true), TrackingTransform(5.0, true)));
+
+    const std::vector<std::size_t> indices{0, 2};
+
+    auto [inputs, targets] = transformed.getBatch(indices);
+
+    expectValues(inputs, {16.0f, 18.0f});
+    expectValues(targets, {0.0f, 2.0f});
+
+    EXPECT_EQ(dataset.batch_calls, 1);
+    EXPECT_EQ(dataset.sample_calls, 0);
+}
+
+TEST(TransformDatasetTest, AcceptsConcreteInputAndTargetTransforms) {
+    TrackingDataset dataset;
+
+    TransformDataset transformed(dataset, TrackingTransform(10.0, false),
+                                 TrackingTransform(20.0, true));
+
+    const std::vector<std::size_t> indices{0, 2};
+
+    auto [inputs, targets] = transformed.getBatch(indices);
+
+    expectValues(inputs, {11.0f, 13.0f});
+    expectValues(targets, {20.0f, 22.0f});
+
+    EXPECT_EQ(dataset.batch_calls, 0);
+    EXPECT_EQ(dataset.sample_calls, 2);
+}
+
+TEST(TransformDatasetTest, AcceptsConcreteTargetOnlyTransform) {
+    TrackingDataset dataset;
+
+    TransformDataset transformed(dataset, nullptr, TrackingTransform(20.0, true));
+
+    auto sample = transformed.get(1);
+
+    expectValues(sample.input, {2.0f});
+    expectValues(sample.target, {21.0f});
+}
