@@ -1,6 +1,7 @@
 #pragma once
 
 #include "neuro/optim/Optimizer.hpp"
+#include "neuro/training/PlateauMode.hpp"
 
 #include <cmath>
 #include <cstddef>
@@ -8,9 +9,6 @@
 #include <stdexcept>
 
 namespace neuro {
-
-enum class PlateauMode { Min, Max };
-
 class ReduceLROnPlateau {
 public:
     ReduceLROnPlateau(Optimizer& optimizer, PlateauMode mode = PlateauMode::Min,

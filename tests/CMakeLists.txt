@@ -47,6 +47,7 @@ add_executable(neuro_tests
     test_random_crop.cpp
     test_lr_schedulers.cpp
     test_reduce_lr_on_plateau.cpp
+    test_early_stopping.cpp
 )
 
 target_link_libraries(neuro_tests
